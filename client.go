@@ -1,16 +1,40 @@
 package main
 
 import (
-	"encoding/json"
-	"strings"
 	"bufio"
+	"encoding/json"
 	"fmt"
-	"time"
-	"os"
+	"io"
 	"io/ioutil"
+	"os"
+	"strings"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 )
+
+func jsonnet(cmd []byte, out io.Writer) {
+	var x map[string]interface{}
+	err := json.Unmarshal(cmd, &x)
+	if err != nil {
+		fmt.Fprintf(out, "ERROR: %s\n", err)
+		return
+	}
+
+	b, err := json.MarshalIndent(x, "json >> ", " . ")
+	if err != nil {
+		fmt.Fprintf(out, "ERROR: %s\n", err)
+		return
+	}
+
+	output := func(f string, args ...interface{}) {
+		fmt.Fprintf(out, f, args...)
+		fmt.Fprintf(os.Stderr, f, args...)
+	}
+	output("-----------------[ output ]-------------\n")
+	output("json >> %s\n", string(b))
+	output("-----------------[ ====== ]-------------\n\n")
+}
 
 func Client(args []string) {
 	timeout := 30
@@ -32,7 +56,7 @@ func Client(args []string) {
 
 	fmt.Fprintf(os.Stderr, "entering dispatch loop...\n")
 	for {
-		func () {
+		func() {
 			fmt.Fprintf(os.Stderr, "starting new session...\n")
 			session, err := conn.NewSession()
 			bail(err)
@@ -59,26 +83,7 @@ func Client(args []string) {
 					fmt.Fprintf(os.Stderr, "server requested we run something:\n")
 					fmt.Fprintf(os.Stderr, "  | %s |\n", msg)
 
-					var x map[string] interface{}
-					err = json.Unmarshal([]byte(msg), &x)
-					if err != nil {
-						fmt.Fprintf(stdin, "ERROR: %s\n", err)
-						break
-					}
-
-					b, err := json.MarshalIndent(x, "json >> ", " . ")
-					if err != nil {
-						fmt.Fprintf(stdin, "ERROR: %s\n", err)
-						break
-					}
-
-					output := func(f string, args ...interface{}) {
-						fmt.Fprintf(stdin, f, args...)
-						fmt.Fprintf(os.Stderr, f, args...)
-					}
-					output("-----------------[ output ]-------------\n")
-					output("json >> %s\n", string(b))
-					output("-----------------[ ====== ]-------------\n\n")
+					jsonnet([]byte(msg), stdin)
 					break
 
 				} else {
