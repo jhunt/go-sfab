@@ -1,16 +1,11 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
+	"time"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
-	"strings"
-	"time"
-
-	"golang.org/x/crypto/ssh"
 )
 
 func jsonnet(cmd []byte, out io.Writer) {
@@ -37,78 +32,32 @@ func jsonnet(cmd []byte, out io.Writer) {
 }
 
 func Client(args []string) {
-	timeout := 30
-	privKeyFile := "id_rsa"
-	host := "127.0.0.1:4771"
-
-	fmt.Fprintf(os.Stderr, "loading SSH client private key from '%s'...\n", privKeyFile)
-	key, err := loadPrivateKey(privKeyFile)
-	bail(err)
-
-	fmt.Fprintf(os.Stderr, "configuring SSH client parameters...\n")
-	config, err := configureSSHClient(key, timeout)
-	bail(err)
-
-	fmt.Fprintf(os.Stderr, "connecting to remote SSH server at '%s'...\n", host)
-	conn, err := ssh.Dial("tcp4", host, config)
-	bail(err)
-	defer conn.Close()
-
-	fmt.Fprintf(os.Stderr, "entering dispatch loop...\n")
-	for {
-		func() {
-			fmt.Fprintf(os.Stderr, "starting new session...\n")
-			session, err := conn.NewSession()
-			bail(err)
-			defer session.Close()
-
-			stdout, err := session.StdoutPipe()
-			bail(err)
-			stdin, err := session.StdinPipe()
-			bail(err)
-
-			fmt.Fprintf(os.Stderr, "issuing an `exec' request across the session...\n")
-			err = session.Start("im-an-agent-and-im-ok")
-			bail(err)
-
-			in := bufio.NewScanner(stdout)
-			for in.Scan() {
-				msg := in.Text()
-
-				if strings.HasPrefix(msg, "ok: ") {
-					fmt.Fprintf(os.Stderr, "server replied | %s.\n", msg)
-
-				} else if strings.HasPrefix(msg, "run: ") {
-					msg = strings.TrimPrefix(msg, "run: ")
-					fmt.Fprintf(os.Stderr, "server requested we run something:\n")
-					fmt.Fprintf(os.Stderr, "  | %s |\n", msg)
-
-					jsonnet([]byte(msg), stdin)
-					break
-
-				} else {
-					fmt.Fprintf(os.Stderr, "unrecognized server message: [%s]\n", msg)
-				}
-			}
-			fmt.Fprintf(os.Stderr, "tearing down session...\n")
-		}()
-	}
-	fmt.Fprintf(os.Stderr, "shutting down...\n")
-}
-
-func loadPrivateKey(path string) (ssh.Signer, error) {
-	b, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, err
+	if len(args) != 1 {
+		fmt.Fprintf(os.Stderr, "USAGE: go-sfab client AGENT-ID\n")
+		os.Exit(1)
 	}
 
-	return ssh.ParsePrivateKey(b)
-}
+	a := Agent{
+		Identity:       args[0],
+		Timeout:        30 * time.Second,
+		PrivateKeyFile: "id_rsa",
+	}
 
-func configureSSHClient(key ssh.Signer, timeout int) (*ssh.ClientConfig, error) {
-	return &ssh.ClientConfig{
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(key)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         time.Duration(timeout) * time.Second,
-	}, nil
+	err := a.Connect("tcp4", "127.0.0.1:4771", func(m Message, w io.Writer) (bool, error) {
+		switch m.Type {
+		case HubInfo:
+			fmt.Fprintf(os.Stderr, "server replied | %s.\n", m.Text())
+			return true, nil
+
+		case AgentExec:
+			fmt.Fprintf(os.Stderr, "server requested we run something:\n")
+			fmt.Fprintf(os.Stderr, "  | %s |\n", m.Text())
+
+			jsonnet(m.Bytes(), w)
+			return false, nil
+		}
+
+		return true, fmt.Errorf("unhandled message type '%s'", m.Type)
+	})
+	bail(err)
 }
