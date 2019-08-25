@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io/ioutil"
 
 	"golang.org/x/crypto/ssh"
@@ -35,6 +36,18 @@ func loadAuthKeys(path string) ([]ssh.PublicKey, error) {
 	}
 
 	return keys, nil
+}
+
+func ignoreNewChannels(in <-chan ssh.NewChannel) {
+	for ch := range in {
+		ch.Reject(ssh.Prohibited, fmt.Sprintf("read my lips -- no new %s channels", ch.ChannelType()))
+	}
+}
+
+func ignoreGlobalRequests(ch <-chan *ssh.Request) {
+	for r := range ch {
+		r.Reply(false, nil)
+	}
 }
 
 func exited(rc int) []byte {

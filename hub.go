@@ -2,11 +2,14 @@ package main
 
 import (
 	"bufio"
-	"sync"
 	"bytes"
+	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"os"
+	"sync"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -16,11 +19,6 @@ import (
 // instructions.
 //
 type Hub struct {
-	// The unique string that identifies agents as belonging
-	// to this particular Hub.
-	//
-	Hail string
-
 	// The IP address (or hostname / FQDN) and TCP port to
 	// bind and listen on for incoming SSH connections from
 	// sFAB Agents.
@@ -46,7 +44,7 @@ type Hub struct {
 	// Concurrency guard, for access to the agents map
 	// from multiple (handler) goroutines.
 	//
-	lock sync.Mutex
+	lk sync.Mutex
 
 	// The network listener that we await new inbound SSH
 	// connections on.
@@ -54,18 +52,16 @@ type Hub struct {
 	listener net.Listener
 
 	// A directory of registered agents.
-	agents map[string]chan Message
+	agents map[string]chan []byte
 }
 
 func (h *Hub) Listen() error {
-	h.agents = make(map[string] chan Message)
+	h.lock()
+	h.agents = make(map[string]chan []byte)
+	h.unlock()
 
 	if h.IPProto == "" {
 		h.IPProto = "tcp4"
-	}
-
-	if h.Hail == "" {
-		h.Hail = DefaultHail
 	}
 
 	if h.HostKeyFile == "" {
@@ -121,94 +117,150 @@ func (h *Hub) Listen() error {
 
 		id += 1
 		socket, err := h.listener.Accept()
-		bail(err)
+		if err != nil {
+			return err
+		}
 
 		fmt.Fprintf(os.Stderr, "[%d] inbound connection accepted; starting SSH handshake...\n", id)
-		c, chans, _, err := ssh.NewServerConn(socket, config)
-		bail(err)
+		c, chans, reqs, err := ssh.NewServerConn(socket, config)
+		if err != nil {
+			return err
+		}
+
+		go ignoreGlobalRequests(reqs)
+		go ignoreNewChannels(chans)
+
+		go func() {
+			tick := time.NewTicker(500 * time.Millisecond)
+			for range tick.C {
+				_, _, err := c.SendRequest("keepalive", true, nil)
+				if err != nil && err == io.EOF {
+					fmt.Fprintf(os.Stderr, "keepalive failed; disconnecting...\n")
+					h.unregister(c.User())
+					c.Close()
+					return
+				}
+			}
+		}()
+
+		events := make(chan []byte)
+		if err := h.register(c.User(), events); err != nil {
+			c.Close()
+			continue
+		}
 
 		go func(id int) {
-			defer c.Close()
-			ident := c.User()
-			fmt.Fprintf(os.Stderr, "[%d] connected as user [%s]\n", id, ident)
-
-			events := make(chan Message)
-			fmt.Fprintf(os.Stderr, "[%d] registering agent (%s)\n", id, ident)
-			err := h.register(ident, events)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "[%d] failed to register: %s\n", id, err)
-				return
-			}
-			defer h.unregister(ident)
-
-			for newch := range chans {
-				if newch.ChannelType() != "session" {
-					newch.Reject(ssh.UnknownChannelType, "buh-bye!")
-				}
-
-				fmt.Fprintf(os.Stderr, "[%d] accepting '%s' request and starting up channel...\n", id, newch.ChannelType())
-				ch, reqs, err := newch.Accept()
-				bail(err)
-
-				for r := range reqs {
-					fmt.Fprintf(os.Stderr, "[%d] request type '%s' received.\n", id, r.Type)
-
-					if r.Type != "exec" {
-						r.Reply(false, nil)
-						continue
-					}
-
-					r.Reply(true, nil)
-					fmt.Fprintf(os.Stderr, "[%d] extracting `exec' payload to determine if this is an ssher client...\n", id)
-
-					var payload struct{ Value []byte }
-					err = ssh.Unmarshal(r.Payload, &payload)
-					bail(err)
-
-					fmt.Fprintf(os.Stderr, "[%d] received `exec' payload of [%s]\n", id, string(payload.Value))
-					fmt.Fprintf(os.Stderr, "[%d]         or in hexadecimal: [% 02x]\n", id, payload.Value)
-
-					if string(payload.Value) != h.Hail {
-						fmt.Fprintf(ch, "err: please say the magic word.\n")
-						ch.SendRequest("exit-status", false, exited(1))
+			for m := range events {
+				ch, in, err := c.OpenChannel("session", nil)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "[%d] failed to open session channel: %s\n", id, err)
+					if err == io.EOF {
+						fmt.Fprintf(os.Stderr, "[%d] disconnecting?\n", id)
 						break
 					}
+					continue
+				}
 
-					fmt.Fprintf(ch, "info: welcome to the club, %s!\n", ident)
-					fmt.Fprintf(os.Stderr, "[%d] agent handshake established; entering dispatch loop...\n", id)
+				type exited struct {
+					code   int
+					signal string
+					err    error
+				}
+				rc := exited{code: -1}
+				done := make(chan exited)
 
-					in := bufio.NewScanner(ch)
+				fmt.Fprintf(os.Stderr, "[%d] spinning a goroutine to handle channel requests...\n", id)
+				go func() {
+					for msg := range in {
+						fmt.Fprintf(os.Stderr, "[%d] got request of type '%s'...\n", id, msg.Type)
+						switch msg.Type {
+						case "exit-status":
+							rc.code = int(binary.BigEndian.Uint32(msg.Payload))
 
-					for ev := range events {
-						fmt.Fprintf(ch, "%s: %s\n", ev.Type, ev.Text())
-						for in.Scan() {
-							fmt.Printf("[%d] out | %s\n", id, in.Text())
+						case "exit-signal":
+							var siggy struct {
+								Signal     string
+								CoreDumped bool
+								Error      string
+								Lang       string
+							}
+							if err := ssh.Unmarshal(msg.Payload, &siggy); err != nil {
+								rc.err = err
+								done <- rc
+								return
+							}
+							rc.signal = siggy.Signal
+							rc.err = fmt.Errorf("remote error: %s\n", siggy.Error)
+
+						default:
+							if msg.WantReply {
+								msg.Reply(false, nil)
+							}
 						}
-						fmt.Fprintf(os.Stderr, "[%d] sending exit-status 0...\n", id)
-						ch.SendRequest("exit-status", false, exited(0))
-						break
 					}
+
+					done <- rc
+				}()
+
+				ex := struct {
+					Command string
+				}{
+					Command: string(m),
+				}
+				ok, err := ch.SendRequest("exec", true, ssh.Marshal(&ex))
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "[%d] failed to send exec request to remote agent: %s\n", id, err)
+					continue
+				}
+				if !ok {
+					fmt.Fprintf(os.Stderr, "[%d] failed to send exec request to remote agent: general failure?\n", id)
+					continue
 				}
 
-				fmt.Fprintf(os.Stderr, "[%d] closing connection...\n", id)
-				ch.Close()
+				fmt.Fprintf(os.Stderr, "[%d] spinning a goroutine to handle standard output...\n", id)
+				go func() {
+					in := bufio.NewScanner(ch)
+					for in.Scan() {
+						fmt.Fprintf(os.Stderr, "[%d] STDOUT | %s\n", id, in.Text())
+					}
+				}()
+
+				fmt.Fprintf(os.Stderr, "[%d] spinning a goroutine to handle standard error...\n", id)
+				go func() {
+					in := bufio.NewScanner(ch)
+					for in.Scan() {
+						fmt.Fprintf(os.Stderr, "[%d] STDERR | %s\n", id, in.Text())
+					}
+				}()
+
+				fmt.Fprintf(os.Stderr, "[%d] closing standard input (we have none to offer anyway)...\n", id)
+				ch.CloseWrite()
+
+				fmt.Fprintf(os.Stderr, "[%d] waiting for remote end to finish up...\n", id)
+				<-done
 			}
 
-			fmt.Fprintf(os.Stderr, "[%d] done with incoming channels.\n", id)
+			h.unregister(c.User())
+			c.Close()
 		}(id)
 	}
 }
 
-func (h *Hub) Send(agent string, typ MessageType, payload string) error {
-	h.lock.Lock()
-	defer h.lock.Unlock()
+func (h *Hub) lock() {
+	h.lk.Lock()
+}
+
+func (h *Hub) unlock() {
+	h.lk.Unlock()
+}
+
+func (h *Hub) Send(agent string, payload []byte) error {
+	h.lock()
+	defer h.unlock()
 
 	if ch, ok := h.agents[agent]; ok {
 		fmt.Fprintf(os.Stderr, "writing message to channel...\n")
-		ch <- Message{
-			Type: typ,
-			data: []byte(payload),
-		}
+		ch <- payload
 		fmt.Fprintf(os.Stderr, "WROTE message to channel...\n")
 		return nil
 	} else {
@@ -216,10 +268,11 @@ func (h *Hub) Send(agent string, typ MessageType, payload string) error {
 	}
 }
 
-func (h *Hub) register(name string, ch chan Message) error {
-	h.lock.Lock()
-	defer h.lock.Unlock()
+func (h *Hub) register(name string, ch chan []byte) error {
+	h.lock()
+	defer h.unlock()
 
+	fmt.Fprintf(os.Stderr, "registering agent (%s)\n", name)
 	if _, found := h.agents[name]; found {
 		return fmt.Errorf("agent (%s) already registered", name)
 	}
@@ -229,8 +282,8 @@ func (h *Hub) register(name string, ch chan Message) error {
 }
 
 func (h *Hub) unregister(name string) {
-	h.lock.Lock()
-	defer h.lock.Unlock()
+	h.lock()
+	defer h.unlock()
 
 	fmt.Fprintf(os.Stderr, "unregistering agent (%s)\n", name)
 	if ch, found := h.agents[name]; found {

@@ -1,20 +1,18 @@
 package main
 
 import (
-	"os"
-	"bufio"
 	"fmt"
-	"time"
 	"io"
+	"net"
+	"os"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 )
 
-type Handler func (Message, io.Writer) (bool, error)
+type Handler func([]byte, io.Writer)
 
 type Agent struct {
-	Hail string
-
 	Identity string
 
 	PrivateKeyFile string
@@ -25,10 +23,6 @@ type Agent struct {
 func (a *Agent) Connect(proto, host string, handler Handler) error {
 	if a.PrivateKeyFile == "" {
 		return fmt.Errorf("missing PrivateKeyFile in Agent object.")
-	}
-
-	if a.Hail == "" {
-		a.Hail = DefaultHail
 	}
 
 	key, err := loadPrivateKey(a.PrivateKeyFile)
@@ -43,59 +37,53 @@ func (a *Agent) Connect(proto, host string, handler Handler) error {
 		Timeout:         a.Timeout,
 	}
 
-	conn, err := ssh.Dial(proto, host, config)
+	socket, err := net.DialTimeout(proto, host, a.Timeout)
+	if err != nil {
+		return err
+	}
+
+	conn, chans, reqs, err := ssh.NewClientConn(socket, host, config)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
-	for {
-		err = a.session(conn, handler)
+	go ignoreGlobalRequests(reqs)
+	for newch := range chans {
+		fmt.Fprintf(os.Stderr, "inbound channel type '%s' from server...\n", newch.ChannelType())
+
+		if newch.ChannelType() != "session" {
+			newch.Reject(ssh.UnknownChannelType, "buh-bye!")
+		}
+
+		fmt.Fprintf(os.Stderr, "accepting '%s' request and starting up channel...\n", newch.ChannelType())
+		ch, reqs, err := newch.Accept()
 		if err != nil {
 			return err
 		}
-	}
-}
 
-func (a *Agent) session(conn *ssh.Client, handler Handler) error {
-	session, err := conn.NewSession()
-	if err != nil {
-		return err
-	}
-	defer session.Close()
+		for r := range reqs {
+			fmt.Fprintf(os.Stderr, "request type '%s' received.\n", r.Type)
 
-	stdout, err := session.StdoutPipe()
-	if err != nil {
-		return err
-	}
+			if r.Type != "exec" {
+				r.Reply(false, nil)
+				continue
+			}
 
-	stdin, err := session.StdinPipe()
-	if err != nil {
-		return err
-	}
+			r.Reply(true, nil)
+			var payload struct{ Value []byte }
+			if err := ssh.Unmarshal(r.Payload, &payload); err != nil {
+				return err
+			}
 
-	err = session.Start(DefaultHail)
-	if err != nil {
-		return err
-	}
-
-	down := bufio.NewScanner(stdout)
-	for down.Scan() {
-		msg, err := ParseMessage(down.Text())
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "unrecognized server message:\n  [%s]\n  %s\n", down.Text(), err)
-			continue
-		}
-
-		proceed, err := handler(msg, stdin)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to handle message: %s\n", err)
-		}
-		if !proceed {
-			stdin.Close()
+			fmt.Fprintf(os.Stderr, "received `exec' payload of [%s]\n", string(payload.Value))
+			handler(payload.Value, ch)
+			ch.SendRequest("exit-status", false, exited(0))
 			break
 		}
+
+		fmt.Fprintf(os.Stderr, "closing connection...\n")
+		ch.Close()
 	}
-	fmt.Fprintf(os.Stderr, "tearing down session...\n")
 	return nil
 }

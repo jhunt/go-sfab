@@ -2,10 +2,10 @@ package main
 
 import (
 	"encoding/json"
-	"time"
 	"fmt"
 	"io"
 	"os"
+	"time"
 )
 
 func jsonnet(cmd []byte, out io.Writer) {
@@ -43,21 +43,9 @@ func Client(args []string) {
 		PrivateKeyFile: "id_rsa",
 	}
 
-	err := a.Connect("tcp4", "127.0.0.1:4771", func(m Message, w io.Writer) (bool, error) {
-		switch m.Type {
-		case HubInfo:
-			fmt.Fprintf(os.Stderr, "server replied | %s.\n", m.Text())
-			return true, nil
-
-		case AgentExec:
-			fmt.Fprintf(os.Stderr, "server requested we run something:\n")
-			fmt.Fprintf(os.Stderr, "  | %s |\n", m.Text())
-
-			jsonnet(m.Bytes(), w)
-			return false, nil
-		}
-
-		return true, fmt.Errorf("unhandled message type '%s'", m.Type)
-	})
-	bail(err)
+	err := a.Connect("tcp4", "127.0.0.1:4771", jsonnet)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err)
+		os.Exit(2)
+	}
 }
