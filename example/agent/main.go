@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"time"
+
+	"github.com/jhunt/go-sfab"
 )
 
 func jsonnet(cmd []byte, out io.Writer) {
@@ -31,16 +33,16 @@ func jsonnet(cmd []byte, out io.Writer) {
 	output("-----------------[ ====== ]-------------\n\n")
 }
 
-func Client(args []string) {
-	if len(args) != 1 {
-		fmt.Fprintf(os.Stderr, "USAGE: go-sfab client AGENT-ID\n")
+func main() {
+	if len(os.Args) != 2 {
+		fmt.Fprintf(os.Stderr, "USAGE:%s AGENT-ID\n", os.Args[0])
 		os.Exit(1)
 	}
 
-	a := Agent{
-		Identity:       args[0],
+	a := sfab.Agent{
+		Identity:       os.Args[1],
 		Timeout:        30 * time.Second,
-		PrivateKeyFile: "id_rsa",
+		PrivateKeyFile: "example/id_rsa",
 	}
 
 	err := a.Connect("tcp4", "127.0.0.1:4771", jsonnet)

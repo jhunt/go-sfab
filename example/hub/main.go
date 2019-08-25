@@ -4,20 +4,21 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/jhunt/go-sfab"
 )
 
-func Server(args []string) {
-	h := &Hub{
+func main() {
+	h := &sfab.Hub{
 		Bind:         "127.0.0.1:4771",
-		HostKeyFile:  "host_key",
-		AuthKeysFile: "id_rsa.pub",
+		HostKeyFile:  "example/host_key",
+		AuthKeysFile: "example/id_rsa.pub",
 	}
 
 	run := 1
 	go func() {
 		for {
 			if run%5 == 0 {
-				h.dumpState()
 				fmt.Fprintf(os.Stderr, "waiting 5s for next job dispatch to (some-agent)...\n")
 				time.Sleep(5 * time.Second)
 				fmt.Fprintf(os.Stderr, "woke up; resuming job dispatch...\n")
@@ -30,5 +31,8 @@ func Server(args []string) {
 			run += 1
 		}
 	}()
-	h.Listen()
+
+	if err := h.Listen(); err != nil {
+		fmt.Fprintf(os.Stderr, "listen: %s\n", err)
+	}
 }
