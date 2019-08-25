@@ -17,25 +17,24 @@ func loadPrivateKey(path string) (ssh.Signer, error) {
 	return ssh.ParsePrivateKey(b)
 }
 
-func loadAuthKeys(path string) ([]ssh.PublicKey, error) {
-	var keys []ssh.PublicKey
-
+func withAuthKeys(path string, fn func (string, ssh.PublicKey)) error {
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	for {
-		key, _, _, rest, err := ssh.ParseAuthorizedKey(b)
+		key, user, _, rest, err := ssh.ParseAuthorizedKey(b)
 		if err != nil {
+			// ran out of keys...
 			break
 		}
 
-		keys = append(keys, key)
+		fn(user, key)
 		b = rest
 	}
 
-	return keys, nil
+	return nil
 }
 
 func ignoreNewChannels(in <-chan ssh.NewChannel) {

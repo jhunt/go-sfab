@@ -2,7 +2,6 @@ package sfab
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -35,12 +34,6 @@ type Hub struct {
 	//
 	HostKeyFile string
 
-	// Path on the filesystem to the list of authorized
-	// keys of sFAB Agents that are statically allowed
-	// to connect to this sFAB Hub.
-	//
-	AuthKeysFile string
-
 	// Concurrency guard, for access to the agents map
 	// from multiple (handler) goroutines.
 	//
@@ -53,8 +46,20 @@ type Hub struct {
 
 	// A directory of registered agents.
 	agents map[string]chan []byte
+
+	// A map of Marshaled Public Key -> Agent -> t, indicating
+	// which keys we have already authenticated.
+	//
+	authkeys map[string] map[string] bool
 }
 
+// Listen binds a network socket for the Hub, listens for incoming
+// SSH connections on it, and then services those agents, distributing
+// messages via a session channel and an exec request, each.
+//
+// You probably want to run this in the main goroutine, much like
+// net/http's ListenAndServe().
+//
 func (h *Hub) Listen() error {
 	h.lock()
 	h.agents = make(map[string]chan []byte)
@@ -68,16 +73,7 @@ func (h *Hub) Listen() error {
 		return fmt.Errorf("missing HostKeyFile in Hub object.")
 	}
 
-	if h.AuthKeysFile == "" {
-		return fmt.Errorf("missing AuthKeysFile in Hub object.")
-	}
-
 	hostKey, err := loadPrivateKey(h.HostKeyFile)
-	if err != nil {
-		return err
-	}
-
-	authKeys, err := loadAuthKeys(h.AuthKeysFile)
 	if err != nil {
 		return err
 	}
@@ -87,13 +83,10 @@ func (h *Hub) Listen() error {
 			return false
 		},
 
-		UserKeyFallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-			for _, k := range authKeys {
-				if bytes.Equal(k.Marshal(), key.Marshal()) {
-					return nil, nil
-				}
+		UserKeyFallback: func(c ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			if h.Authorized(c.User(), key) {
+				return nil, nil
 			}
-
 			return nil, fmt.Errorf("unknown public key")
 		},
 	}
@@ -118,13 +111,13 @@ func (h *Hub) Listen() error {
 		id += 1
 		socket, err := h.listener.Accept()
 		if err != nil {
-			return err
+			continue
 		}
 
 		fmt.Fprintf(os.Stderr, "[%d] inbound connection accepted; starting SSH handshake...\n", id)
 		c, chans, reqs, err := ssh.NewServerConn(socket, config)
 		if err != nil {
-			return err
+			continue
 		}
 
 		go ignoreGlobalRequests(reqs)
@@ -246,26 +239,135 @@ func (h *Hub) Listen() error {
 	}
 }
 
+func (h *Hub) authorizeKey(agent string, key ssh.PublicKey) {
+	fmt.Fprintf(os.Stderr, "authorizing %s [% x]\n", agent, key.Marshal())
+
+	k := fmt.Sprintf("%v", key.Marshal())
+	if h.authkeys == nil {
+		h.authkeys = make(map[string] map[string] bool)
+	}
+
+	if _, ok := h.authkeys[k]; !ok {
+		h.authkeys[k] = make(map[string] bool)
+	}
+	h.authkeys[k][agent] = true
+}
+
+func (h *Hub) deauthorizeKey(agent string, key ssh.PublicKey) {
+	if h.authkeys == nil {
+		return
+	}
+
+	k := fmt.Sprintf("%v", key.Marshal())
+	if _, ok := h.authkeys[k]; ok {
+		delete(h.authkeys[k], agent)
+	}
+}
+
+// AuthorizeKey tells the Hub to start trusting a given SSH
+// key pair, given the public component, for a named agent.
+//
+// This can be called dynamically, long after a call to Listen(),
+// or before.
+//
+func (h *Hub) AuthorizeKey(agent string, key ssh.PublicKey) {
+	h.lock()
+	defer h.unlock()
+
+	h.authorizeKey(agent, key)
+}
+
+// DeauthorizeKey tells the Hub to stop trusting a given SSH
+// key pair, given the public component, for a named agent.
+//
+// This can be called dynamically, long after a call to Listen(),
+// or before.
+//
+func (h *Hub) DeauthorizeKey(agent string, key ssh.PublicKey) {
+	h.lock()
+	defer h.unlock()
+	h.deauthorizeKey(agent, key)
+}
+
+// AuthorizeKeys reads the given file, which is expected to
+// be in OpenSSH's _authorized keys format_, and trusts each
+// and every key in their, for the named agents in the associated
+// comments.
+//
+// This can be called dynamically, long after a call to Listen(),
+// or before.
+//
+func (h *Hub) AuthorizeKeys(file string) error {
+	h.lock()
+	defer h.unlock()
+	return withAuthKeys(file, h.authorizeKey)
+}
+
+// DeauthorizeKeys reads the given file, which is expected to
+// be in OpenSSH's _authorized keys format_, and deauthorizes each
+// and every key in their, for the named agents in the associated
+// comments.
+//
+// This can be called dynamically, long after a call to Listen(),
+// or before.
+//
+func (h *Hub) DeauthorizeKeys(file string) error {
+	h.lock()
+	defer h.unlock()
+	return withAuthKeys(file, h.deauthorizeKey)
+}
+
+// Authorized checks if the given public component of an SSH key
+// pair has been authorized, with this Hub, for the named agent.
+//
+func (h *Hub) Authorized(agent string, key ssh.PublicKey) bool {
+	h.lock()
+	defer h.unlock()
+
+	k := fmt.Sprintf("%v", key.Marshal())
+	if h.authkeys == nil {
+		h.authkeys = make(map[string] map[string] bool)
+	}
+
+	if _, ok := h.authkeys[k]; !ok {
+		return false
+	}
+	t, ok := h.authkeys[k][agent]
+	return t && ok
+}
+
+// Send a message to an agent (by name).  Returns an error
+// if the named agent is not currently registered with this
+// Hub.
+func (h *Hub) Send(agent string, message []byte) error {
+	h.lock()
+	defer h.unlock()
+
+	if ch, ok := h.agents[agent]; ok {
+		ch <- message
+		return nil
+	} else {
+		return fmt.Errorf("no such agent (%s)", agent)
+	}
+}
+
+// KnowsAgent checks the Hub's agent directory to see if
+// a named agent has registered with this Hub.
+//
+func (h *Hub) KnowsAgent(agent string) bool {
+	h.lock()
+	defer h.unlock()
+
+	_, ok := h.agents[agent]
+	return ok
+}
+
 func (h *Hub) lock() {
 	h.lk.Lock()
 }
 
 func (h *Hub) unlock() {
 	h.lk.Unlock()
-}
-
-func (h *Hub) Send(agent string, payload []byte) error {
-	h.lock()
-	defer h.unlock()
-
-	if ch, ok := h.agents[agent]; ok {
-		fmt.Fprintf(os.Stderr, "writing message to channel...\n")
-		ch <- payload
-		fmt.Fprintf(os.Stderr, "WROTE message to channel...\n")
-		return nil
-	} else {
-		return fmt.Errorf("no such agent (%s)", agent)
-	}
 }
 
 func (h *Hub) register(name string, ch chan []byte) error {
