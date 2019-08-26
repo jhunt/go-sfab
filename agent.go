@@ -102,20 +102,25 @@ func (a *Agent) Connect(proto, host string, handler Handler) error {
 		config.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 	}
 
+	log.Debugf("[agent %s] connecting to %s over %s (for up to %fs)...", a.Identity, host, proto, a.Timeout.Seconds())
 	socket, err := net.DialTimeout(proto, host, a.Timeout)
 	if err != nil {
 		return err
 	}
 
+	log.Debugf("[agent %s] starting SSH transport negotiation with hub...", a.Identity)
 	conn, chans, reqs, err := ssh.NewClientConn(socket, host, config)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
+	log.Debugf("[agent %s] ignoring global requests (keepalives, mostly) from hub...", a.Identity)
 	go ignoreGlobalRequests(reqs)
+
+	log.Debugf("[agent %s] awaiting channel requests from hub...", a.Identity)
 	for newch := range chans {
-		log.Debugf("[agent %s] inbound channel type '%s' from server...", a.Identity, newch.ChannelType())
+		log.Debugf("[agent %s] inbound channel type '%s' from hub...", a.Identity, newch.ChannelType())
 
 		if newch.ChannelType() != "session" {
 			newch.Reject(ssh.UnknownChannelType, "buh-bye!")
@@ -149,6 +154,8 @@ func (a *Agent) Connect(proto, host string, handler Handler) error {
 
 		log.Debugf("[agent %s] closing connection...", a.Identity)
 		ch.Close()
+
+		log.Debugf("[agent %s] awaiting channel requests from hub...", a.Identity)
 	}
 	return nil
 }

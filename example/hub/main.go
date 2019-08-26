@@ -35,9 +35,23 @@ func main() {
 				fmt.Fprintf(os.Stderr, "woke up; resuming job dispatch...\n")
 			}
 
-			err := h.Send("some-agent", []byte(fmt.Sprintf(`{"run":"%d"}`, run)))
+			fmt.Fprintf(os.Stderr, "run %d: running command...\n", run)
+			replies, err := h.Send("some-agent", []byte(fmt.Sprintf(`{"run":"%d"}`, run)))
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "uh-oh: %s\n", err)
+			} else {
+				fmt.Fprintf(os.Stderr, "run %d: command running...\n", run)
+				go func(run int) {
+					for r := range replies {
+						if r.IsStdout() {
+							fmt.Printf("run %d STDOUT | %s\n", run, r.Text())
+						} else if r.IsStderr() {
+							fmt.Printf("run %d STDERR | %s\n", run, r.Text())
+						} else if r.IsExit() {
+							fmt.Printf("run %d EXIT   | command exited %d\n", run, r.ExitCode())
+						}
+					}
+				}(run)
 			}
 			run += 1
 		}

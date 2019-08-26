@@ -52,7 +52,7 @@ type Hub struct {
 	listener net.Listener
 
 	// A directory of registered agents.
-	agents map[string]chan []byte
+	agents map[string]chan Message
 
 	// A KeyMaster, for tracking authorized Agent keys.
 	//
@@ -68,7 +68,7 @@ type Hub struct {
 //
 func (h *Hub) Listen() error {
 	h.lock()
-	h.agents = make(map[string]chan []byte)
+	h.agents = make(map[string]chan Message)
 	h.unlock()
 
 	if h.IPProto == "" {
@@ -147,7 +147,7 @@ func (h *Hub) Listen() error {
 			}()
 		}
 
-		events := make(chan []byte)
+		events := make(chan Message)
 		if err := h.register(c.User(), events); err != nil {
 			c.Close()
 			continue
@@ -209,7 +209,7 @@ func (h *Hub) Listen() error {
 				ex := struct {
 					Command string
 				}{
-					Command: string(m),
+					Command: string(m.payload),
 				}
 				ok, err := ch.SendRequest("exec", true, ssh.Marshal(&ex))
 				if err != nil {
@@ -217,33 +217,44 @@ func (h *Hub) Listen() error {
 					continue
 				}
 				if !ok {
-					log.Debugf("[hub conn %d] failed to send exec request to remote agent: unspecified failure\n", id)
+					log.Debugf("[hub conn %d] failed to send exec request to remote agent: unspecified failure", id)
 					continue
 				}
 
-				log.Debugf("[hub conn %d] spinning a goroutine to handle standard output...", id)
+				log.Debugf("[hub conn %d] spinning goroutines to handle standard output and standard error...", id)
+				var wg sync.WaitGroup
+				wg.Add(2)
 				go func() {
-					in := bufio.NewScanner(ch)
-					for in.Scan() {
-						// FIXME
-						log.Debugf("[hub conn %d] STDOUT | %s", id, in.Text())
-					}
+					h.drain(stdoutSource, ch, m.responses)
+					log.Debugf("[hub conn %d] done processing STDOUT channel...", id)
+					wg.Done()
 				}()
-
-				log.Debugf("[hub conn %d] spinning a goroutine to handle standard error...", id)
 				go func() {
-					in := bufio.NewScanner(ch)
-					for in.Scan() {
-						// FIXME
-						log.Debugf("[hub conn %d] STDERR | %s", id, in.Text())
-					}
+					h.drain(stderrSource, ch.Stderr(), m.responses)
+					log.Debugf("[hub conn %d] done processing STDERR channel...", id)
+					wg.Done()
 				}()
 
 				log.Debugf("[hub conn %d] closing standard input (we have none to offer anyway)...", id)
 				ch.CloseWrite()
 
 				log.Debugf("[hub conn %d] waiting for remote end to finish up...", id)
-				<-done
+				x := <-done
+
+				log.Debugf("[hub conn %d] closing SSH 'session' channel...", id)
+				ch.Close()
+
+				log.Debugf("[hub conn %d] waiting for output sink goroutines to spin down...", id)
+				wg.Wait()
+
+				log.Debugf("[hub conn %d] sending exit response to our caller...", id)
+				m.responses <- Response{
+					source: exitSource,
+					rc:     x.code,
+				}
+
+				log.Debugf("[hub conn %d] closing message response channel...", id)
+				close(m.responses)
 			}
 
 			h.unregister(c.User())
@@ -325,15 +336,24 @@ func (h *Hub) DeauthorizeKeys(file string) error {
 // Send a message to an agent (by name).  Returns an error
 // if the named agent is not currently registered with this
 // Hub.
-func (h *Hub) Send(agent string, message []byte) error {
+//
+// If an Agent is found, Responses (including output and the
+// ultimate exit code) will be sent via the returned channel.
+//
+func (h *Hub) Send(agent string, message []byte) (chan Response, error) {
 	h.lock()
 	defer h.unlock()
 
 	if ch, ok := h.agents[agent]; ok {
-		ch <- message
-		return nil
+		reply := make(chan Response)
+		ch <- Message{
+			responses: reply,
+			payload:   message,
+		}
+		return reply, nil
+
 	} else {
-		return fmt.Errorf("no such agent (%s)", agent)
+		return nil, fmt.Errorf("no such agent (%s)", agent)
 	}
 }
 
@@ -356,7 +376,7 @@ func (h *Hub) unlock() {
 	h.lk.Unlock()
 }
 
-func (h *Hub) register(name string, ch chan []byte) error {
+func (h *Hub) register(name string, ch chan Message) error {
 	h.lock()
 	defer h.unlock()
 
@@ -379,4 +399,14 @@ func (h *Hub) unregister(name string) {
 		close(ch)
 	}
 	log.Debugf("[hub] done unregistering agent '%s'", name)
+}
+
+func (*Hub) drain(src source, in io.Reader, out chan Response) {
+	sc := bufio.NewScanner(in)
+	for sc.Scan() {
+		out <- Response{
+			source: src,
+			text:   sc.Text(),
+		}
+	}
 }
