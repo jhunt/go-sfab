@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"time"
 
+	"github.com/jhunt/go-log"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -115,20 +115,20 @@ func (a *Agent) Connect(proto, host string, handler Handler) error {
 
 	go ignoreGlobalRequests(reqs)
 	for newch := range chans {
-		fmt.Fprintf(os.Stderr, "inbound channel type '%s' from server...\n", newch.ChannelType())
+		log.Debugf("[agent %s] inbound channel type '%s' from server...", a.Identity, newch.ChannelType())
 
 		if newch.ChannelType() != "session" {
 			newch.Reject(ssh.UnknownChannelType, "buh-bye!")
 		}
 
-		fmt.Fprintf(os.Stderr, "accepting '%s' request and starting up channel...\n", newch.ChannelType())
+		log.Debugf("[agent %s] accepting '%s' request and starting up channel...", a.Identity, newch.ChannelType())
 		ch, reqs, err := newch.Accept()
 		if err != nil {
 			return err
 		}
 
 		for r := range reqs {
-			fmt.Fprintf(os.Stderr, "request type '%s' received.\n", r.Type)
+			log.Debugf("[agent %s] request type '%s' received.", a.Identity, r.Type)
 
 			if r.Type != "exec" {
 				r.Reply(false, nil)
@@ -141,13 +141,13 @@ func (a *Agent) Connect(proto, host string, handler Handler) error {
 				return err
 			}
 
-			fmt.Fprintf(os.Stderr, "received `exec' payload of [%s]\n", string(payload.Value))
+			log.Debugf("[agent %s] received `exec' payload of [%s]", a.Identity, string(payload.Value))
 			handler(payload.Value, ch)
 			ch.SendRequest("exit-status", false, exited(0))
 			break
 		}
 
-		fmt.Fprintf(os.Stderr, "closing connection...\n")
+		log.Debugf("[agent %s] closing connection...", a.Identity)
 		ch.Close()
 	}
 	return nil

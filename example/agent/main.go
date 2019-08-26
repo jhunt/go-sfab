@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/jhunt/go-log"
 	"github.com/jhunt/go-sfab"
 )
 
@@ -34,6 +35,11 @@ func jsonnet(cmd []byte, out io.Writer) {
 }
 
 func main() {
+	log.SetupLogging(log.LogConfig{
+		Type:  "console",
+		Level: "debug",
+	})
+
 	if len(os.Args) != 2 {
 		fmt.Fprintf(os.Stderr, "USAGE:%s AGENT-ID\n", os.Args[0])
 		os.Exit(1)

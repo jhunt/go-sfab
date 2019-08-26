@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"sync"
 	"time"
 
+	"github.com/jhunt/go-log"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -112,7 +112,7 @@ func (h *Hub) Listen() error {
 
 	id := 0
 	for {
-		fmt.Fprintf(os.Stderr, "awaiting connection...\n")
+		log.Debugf("[hub] awaiting inbound connections...")
 
 		id += 1
 		socket, err := h.listener.Accept()
@@ -120,22 +120,25 @@ func (h *Hub) Listen() error {
 			continue
 		}
 
-		fmt.Fprintf(os.Stderr, "[%d] inbound connection accepted; starting SSH handshake...\n", id)
+		log.Debugf("[hub conn %d] inbound connection accepted; starting SSH handshake...", id)
 		c, chans, reqs, err := ssh.NewServerConn(socket, config)
 		if err != nil {
 			continue
 		}
 
+		log.Debugf("[hub conn %d] ignoring global requests from connected agent...", id)
 		go ignoreGlobalRequests(reqs)
+		log.Debugf("[hub conn %d] ignoring new channel requests from connected agent...", id)
 		go ignoreNewChannels(chans)
 
 		if h.KeepAlive > 0 {
+			log.Debugf("[hub conn %d] sending keepalives at %ds interval", id, h.KeepAlive.Seconds())
 			go func() {
 				tick := time.NewTicker(h.KeepAlive)
 				for range tick.C {
 					_, _, err := c.SendRequest("keepalive", true, nil)
 					if err != nil && err == io.EOF {
-						fmt.Fprintf(os.Stderr, "keepalive failed; disconnecting...\n")
+						log.Debugf("[hub conn %d] keepalive failed (%s); disconnecting...", id, err)
 						h.unregister(c.User())
 						c.Close()
 						return
@@ -154,9 +157,9 @@ func (h *Hub) Listen() error {
 			for m := range events {
 				ch, in, err := c.OpenChannel("session", nil)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "[%d] failed to open session channel: %s\n", id, err)
+					log.Debugf("[hub conn %d] failed to open a session channel: %s", id, err)
 					if err == io.EOF {
-						fmt.Fprintf(os.Stderr, "[%d] disconnecting?\n", id)
+						log.Debugf("[hub conn %d] disconnecting.", id)
 						break
 					}
 					continue
@@ -170,10 +173,10 @@ func (h *Hub) Listen() error {
 				rc := exited{code: -1}
 				done := make(chan exited)
 
-				fmt.Fprintf(os.Stderr, "[%d] spinning a goroutine to handle channel requests...\n", id)
+				log.Debugf("[hub conn %d] spinning a goroutine to handle channel requests...", id)
 				go func() {
 					for msg := range in {
-						fmt.Fprintf(os.Stderr, "[%d] got request of type '%s'...\n", id, msg.Type)
+						log.Debugf("[hub conn %d] received '%s' request...", id, msg.Type)
 						switch msg.Type {
 						case "exit-status":
 							rc.code = int(binary.BigEndian.Uint32(msg.Payload))
@@ -210,34 +213,36 @@ func (h *Hub) Listen() error {
 				}
 				ok, err := ch.SendRequest("exec", true, ssh.Marshal(&ex))
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "[%d] failed to send exec request to remote agent: %s\n", id, err)
+					log.Debugf("[hub conn %d] failed to send exec request to remote agent: %s", id, err)
 					continue
 				}
 				if !ok {
-					fmt.Fprintf(os.Stderr, "[%d] failed to send exec request to remote agent: general failure?\n", id)
+					log.Debugf("[hub conn %d] failed to send exec request to remote agent: unspecified failure\n", id)
 					continue
 				}
 
-				fmt.Fprintf(os.Stderr, "[%d] spinning a goroutine to handle standard output...\n", id)
+				log.Debugf("[hub conn %d] spinning a goroutine to handle standard output...", id)
 				go func() {
 					in := bufio.NewScanner(ch)
 					for in.Scan() {
-						fmt.Fprintf(os.Stderr, "[%d] STDOUT | %s\n", id, in.Text())
+						// FIXME
+						log.Debugf("[hub conn %d] STDOUT | %s", id, in.Text())
 					}
 				}()
 
-				fmt.Fprintf(os.Stderr, "[%d] spinning a goroutine to handle standard error...\n", id)
+				log.Debugf("[hub conn %d] spinning a goroutine to handle standard error...", id)
 				go func() {
 					in := bufio.NewScanner(ch)
 					for in.Scan() {
-						fmt.Fprintf(os.Stderr, "[%d] STDERR | %s\n", id, in.Text())
+						// FIXME
+						log.Debugf("[hub conn %d] STDERR | %s", id, in.Text())
 					}
 				}()
 
-				fmt.Fprintf(os.Stderr, "[%d] closing standard input (we have none to offer anyway)...\n", id)
+				log.Debugf("[hub conn %d] closing standard input (we have none to offer anyway)...", id)
 				ch.CloseWrite()
 
-				fmt.Fprintf(os.Stderr, "[%d] waiting for remote end to finish up...\n", id)
+				log.Debugf("[hub conn %d] waiting for remote end to finish up...", id)
 				<-done
 			}
 
@@ -355,9 +360,9 @@ func (h *Hub) register(name string, ch chan []byte) error {
 	h.lock()
 	defer h.unlock()
 
-	fmt.Fprintf(os.Stderr, "registering agent (%s)\n", name)
+	log.Debugf("[hub] registering agent '%s'", name)
 	if _, found := h.agents[name]; found {
-		return fmt.Errorf("agent (%s) already registered", name)
+		return fmt.Errorf("agent '%s' already registered", name)
 	}
 
 	h.agents[name] = ch
@@ -368,10 +373,10 @@ func (h *Hub) unregister(name string) {
 	h.lock()
 	defer h.unlock()
 
-	fmt.Fprintf(os.Stderr, "unregistering agent (%s)\n", name)
+	log.Debugf("[hub] unregistering agent '%s'", name)
 	if ch, found := h.agents[name]; found {
 		delete(h.agents, name)
 		close(ch)
 	}
-	fmt.Fprintf(os.Stderr, "done unregistering agent (%s)\n", name)
+	log.Debugf("[hub] done unregistering agent '%s'", name)
 }

@@ -5,10 +5,16 @@ import (
 	"os"
 	"time"
 
+	"github.com/jhunt/go-log"
 	"github.com/jhunt/go-sfab"
 )
 
 func main() {
+	log.SetupLogging(log.LogConfig{
+		Type:  "console",
+		Level: "debug",
+	})
+
 	h := &sfab.Hub{
 		Bind:        "127.0.0.1:4771",
 		HostKeyFile: "example/host_key",
