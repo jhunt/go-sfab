@@ -40,6 +40,31 @@ type Agent struct {
 	// How long to wait for an upstream Hub to connect.
 	//
 	Timeout time.Duration
+
+	// A helper object for authorizing Hub host keys by name or IP.
+	//
+	keys *KeyMaster
+}
+
+// Instruct the Agent to (insecurely) accept any host key presented by the
+// Hub, when connecting.  This is a terrible idea in production, but can
+// be useful in development or debugging scenarios.
+//
+// Note: calling this function will obliterate any keys authorized by
+// the AuthorizeKey() method.
+//
+func (a *Agent) AcceptAnyHostKey() {
+	a.keys = nil
+}
+
+// Authorize a specific Hub Host Key, which will be accepted from any Hub
+// with the name or IP address given as `host`.
+//
+func (a *Agent) AuthorizeKey(host string, key ssh.PublicKey) {
+	if a.keys == nil {
+		a.keys = &KeyMaster{}
+	}
+	a.keys.Authorize(key, host)
 }
 
 // Connect to a remote sFAB Hub, using the given protocol (i.e. "tcp4" or
@@ -69,8 +94,12 @@ func (a *Agent) Connect(proto, host string, handler Handler) error {
 	config := &ssh.ClientConfig{
 		User:            a.Identity,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(key)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), /* FIXME */
 		Timeout:         a.Timeout,
+	}
+	if a.keys != nil {
+		config.HostKeyCallback = a.keys.HostKeyCallback()
+	} else {
+		config.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 	}
 
 	socket, err := net.DialTimeout(proto, host, a.Timeout)

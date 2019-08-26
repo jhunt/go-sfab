@@ -47,10 +47,9 @@ type Hub struct {
 	// A directory of registered agents.
 	agents map[string]chan []byte
 
-	// A map of Marshaled Public Key -> Agent -> t, indicating
-	// which keys we have already authenticated.
+	// A KeyMaster, for tracking authorized Agent keys.
 	//
-	authkeys map[string] map[string] bool
+	keys *KeyMaster
 }
 
 // Listen binds a network socket for the Hub, listens for incoming
@@ -84,7 +83,7 @@ func (h *Hub) Listen() error {
 		},
 
 		UserKeyFallback: func(c ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-			if h.Authorized(c.User(), key) {
+			if h.keys != nil && h.keys.Authorized(c.User(), key) {
 				return nil, nil
 			}
 			return nil, fmt.Errorf("unknown public key")
@@ -240,28 +239,10 @@ func (h *Hub) Listen() error {
 }
 
 func (h *Hub) authorizeKey(agent string, key ssh.PublicKey) {
-	fmt.Fprintf(os.Stderr, "authorizing %s [% x]\n", agent, key.Marshal())
-
-	k := fmt.Sprintf("%v", key.Marshal())
-	if h.authkeys == nil {
-		h.authkeys = make(map[string] map[string] bool)
+	if h.keys == nil {
+		h.keys = &KeyMaster{}
 	}
-
-	if _, ok := h.authkeys[k]; !ok {
-		h.authkeys[k] = make(map[string] bool)
-	}
-	h.authkeys[k][agent] = true
-}
-
-func (h *Hub) deauthorizeKey(agent string, key ssh.PublicKey) {
-	if h.authkeys == nil {
-		return
-	}
-
-	k := fmt.Sprintf("%v", key.Marshal())
-	if _, ok := h.authkeys[k]; ok {
-		delete(h.authkeys[k], agent)
-	}
+	h.keys.Authorize(key, agent)
 }
 
 // AuthorizeKey tells the Hub to start trusting a given SSH
@@ -277,6 +258,13 @@ func (h *Hub) AuthorizeKey(agent string, key ssh.PublicKey) {
 	h.authorizeKey(agent, key)
 }
 
+func (h *Hub) deauthorizeKey(agent string, key ssh.PublicKey) {
+	if h.keys == nil {
+		h.keys = &KeyMaster{}
+	}
+	h.keys.Deauthorize(key, agent)
+}
+
 // DeauthorizeKey tells the Hub to stop trusting a given SSH
 // key pair, given the public component, for a named agent.
 //
@@ -286,6 +274,7 @@ func (h *Hub) AuthorizeKey(agent string, key ssh.PublicKey) {
 func (h *Hub) DeauthorizeKey(agent string, key ssh.PublicKey) {
 	h.lock()
 	defer h.unlock()
+
 	h.deauthorizeKey(agent, key)
 }
 
@@ -300,6 +289,7 @@ func (h *Hub) DeauthorizeKey(agent string, key ssh.PublicKey) {
 func (h *Hub) AuthorizeKeys(file string) error {
 	h.lock()
 	defer h.unlock()
+
 	return withAuthKeys(file, h.authorizeKey)
 }
 
@@ -314,26 +304,8 @@ func (h *Hub) AuthorizeKeys(file string) error {
 func (h *Hub) DeauthorizeKeys(file string) error {
 	h.lock()
 	defer h.unlock()
+
 	return withAuthKeys(file, h.deauthorizeKey)
-}
-
-// Authorized checks if the given public component of an SSH key
-// pair has been authorized, with this Hub, for the named agent.
-//
-func (h *Hub) Authorized(agent string, key ssh.PublicKey) bool {
-	h.lock()
-	defer h.unlock()
-
-	k := fmt.Sprintf("%v", key.Marshal())
-	if h.authkeys == nil {
-		h.authkeys = make(map[string] map[string] bool)
-	}
-
-	if _, ok := h.authkeys[k]; !ok {
-		return false
-	}
-	t, ok := h.authkeys[k][agent]
-	return t && ok
 }
 
 // Send a message to an agent (by name).  Returns an error
