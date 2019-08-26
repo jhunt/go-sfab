@@ -34,6 +34,13 @@ type Hub struct {
 	//
 	HostKeyFile string
 
+	// How frequently to send KeepAlive messages to connected
+	// agents, to keep their TCP transport channels open.
+	//
+	// By default, no KeepAlives are sent.
+	//
+	KeepAlive time.Duration
+
 	// Concurrency guard, for access to the agents map
 	// from multiple (handler) goroutines.
 	//
@@ -122,18 +129,20 @@ func (h *Hub) Listen() error {
 		go ignoreGlobalRequests(reqs)
 		go ignoreNewChannels(chans)
 
-		go func() {
-			tick := time.NewTicker(500 * time.Millisecond)
-			for range tick.C {
-				_, _, err := c.SendRequest("keepalive", true, nil)
-				if err != nil && err == io.EOF {
-					fmt.Fprintf(os.Stderr, "keepalive failed; disconnecting...\n")
-					h.unregister(c.User())
-					c.Close()
-					return
+		if h.KeepAlive > 0 {
+			go func() {
+				tick := time.NewTicker(h.KeepAlive)
+				for range tick.C {
+					_, _, err := c.SendRequest("keepalive", true, nil)
+					if err != nil && err == io.EOF {
+						fmt.Fprintf(os.Stderr, "keepalive failed; disconnecting...\n")
+						h.unregister(c.User())
+						c.Close()
+						return
+					}
 				}
-			}
-		}()
+			}()
+		}
 
 		events := make(chan []byte)
 		if err := h.register(c.User(), events); err != nil {

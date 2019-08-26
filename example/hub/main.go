@@ -12,6 +12,7 @@ func main() {
 	h := &sfab.Hub{
 		Bind:         "127.0.0.1:4771",
 		HostKeyFile:  "example/host_key",
+		KeepAlive:    10 * time.Second,
 	}
 
 	if err := h.AuthorizeKeys("example/id_rsa.pub"); err != nil {
