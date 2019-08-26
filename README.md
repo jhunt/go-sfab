@@ -1,6 +1,8 @@
 sFAB - An SSH Fabric for Distributed Agent Orchestration
 ========================================================
 
+[![Read our godoc!](https://godoc.org/github.com/jhunt/go-sfab?status.svg)](https://godoc.org/github.com/jhunt/go-sfab)
+
 Welcome to sFAB, a utility library for stringing together
 arbitrary agents, running across all types of IP networks, to form
 an ad hoc execution fabric, all securely over SSH!
