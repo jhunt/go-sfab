@@ -10,19 +10,55 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// DefaultTimeout will be used as a fallback, should an Agent not set
+// its Timeout attribute to a non-zero connect timeout.
+//
+const DefaultTimeout time.Duration = 30 * time.Second
+
+// A Handler is the primary workhorse of the Hub + Agent distributed
+// orchestration engine.  Each Handler will be passed the opaque message
+// payload from the Hub as its first argument (a slice of bytes, arbitrarily
+// long), and an output stream to write responses / output to.
+//
 type Handler func([]byte, io.Writer)
 
+// An Agent represents a client that connects to a Hub over SSH, and awaits
+// instructions on what to do.  Each Agent has an identity (its name and
+// private key).
+//
 type Agent struct {
+	// Name of this agent, which will be sent to any Hub this Agent connects
+	// to, and used to validate authorization (along with its private key).
+	//
 	Identity string
 
+	// Path on the filesystem to the SSH Private Key to use for connecting
+	// to upstream sFAB Hubs.
+	//
 	PrivateKeyFile string
 
+	// How long to wait for an upstream Hub to connect.
+	//
 	Timeout time.Duration
 }
 
+// Connect to a remote sFAB Hub, using the given protocol (i.e. "tcp4" or
+// "tcp6"), and respond to execution requests with the passed Handler.
+//
+// This method will block, so if the caller wishes to do other work, this
+// is best run in a goroutine.
+//
 func (a *Agent) Connect(proto, host string, handler Handler) error {
+	if a.Identity == "" {
+		return fmt.Errorf("missing Identity in Agent object.")
+	}
+
 	if a.PrivateKeyFile == "" {
 		return fmt.Errorf("missing PrivateKeyFile in Agent object.")
+	}
+
+	if a.Timeout == 0 {
+		a.Timeout = DefaultTimeout
 	}
 
 	key, err := loadPrivateKey(a.PrivateKeyFile)
