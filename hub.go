@@ -132,7 +132,7 @@ func (h *Hub) Listen() error {
 		go ignoreNewChannels(chans)
 
 		if h.KeepAlive > 0 {
-			log.Debugf("[hub conn %d] sending keepalives at %ds interval", id, h.KeepAlive.Seconds())
+			log.Debugf("[hub conn %d] sending keepalives at %fs interval", id, h.KeepAlive.Seconds())
 			go func() {
 				tick := time.NewTicker(h.KeepAlive)
 				for range tick.C {
