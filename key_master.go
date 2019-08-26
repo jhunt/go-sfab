@@ -17,7 +17,7 @@ type KeyMaster struct {
 	// A map of Public Key -> Subject -> t, indicating
 	// which keys we have authorized.
 	//
-	keys map[string] map[string] bool
+	keys map[string]map[string]bool
 }
 
 // Authorize a key pair for one or more subjects (either hostnames,
@@ -27,10 +27,10 @@ func (m *KeyMaster) Authorize(key ssh.PublicKey, subjects ...string) {
 	k := fmt.Sprintf("%v", key.Marshal())
 
 	if m.keys == nil {
-		m.keys = make(map[string] map[string] bool)
+		m.keys = make(map[string]map[string]bool)
 	}
 	if _, exists := m.keys[k]; !exists {
-		m.keys[k] = make(map[string] bool)
+		m.keys[k] = make(map[string]bool)
 	}
 
 	for _, s := range subjects {
@@ -45,10 +45,10 @@ func (m *KeyMaster) Deauthorize(key ssh.PublicKey, subjects ...string) {
 	k := fmt.Sprintf("%v", key.Marshal())
 
 	if m.keys == nil {
-		m.keys = make(map[string] map[string] bool)
+		m.keys = make(map[string]map[string]bool)
 	}
 	if _, exists := m.keys[k]; !exists {
-		m.keys[k] = make(map[string] bool)
+		m.keys[k] = make(map[string]bool)
 	}
 
 	for _, s := range subjects {
@@ -76,7 +76,7 @@ func (m *KeyMaster) Authorized(subject string, key ssh.PublicKey) bool {
 // to whitelist authorized host keys during SSH connection negotiation.
 //
 func (m *KeyMaster) HostKeyCallback() ssh.HostKeyCallback {
-	return func (hostname string, remote net.Addr, key ssh.PublicKey) error {
+	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
 		if m.Authorized(hostname, key) {
 			return nil
 		}

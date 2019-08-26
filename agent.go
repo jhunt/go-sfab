@@ -92,9 +92,9 @@ func (a *Agent) Connect(proto, host string, handler Handler) error {
 	}
 
 	config := &ssh.ClientConfig{
-		User:            a.Identity,
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(key)},
-		Timeout:         a.Timeout,
+		User:    a.Identity,
+		Auth:    []ssh.AuthMethod{ssh.PublicKeys(key)},
+		Timeout: a.Timeout,
 	}
 	if a.keys != nil {
 		config.HostKeyCallback = a.keys.HostKeyCallback()

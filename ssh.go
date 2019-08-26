@@ -17,7 +17,7 @@ func loadPrivateKey(path string) (ssh.Signer, error) {
 	return ssh.ParsePrivateKey(b)
 }
 
-func withAuthKeys(path string, fn func (string, ssh.PublicKey)) error {
+func withAuthKeys(path string, fn func(string, ssh.PublicKey)) error {
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
 		return err
