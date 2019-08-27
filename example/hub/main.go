@@ -62,7 +62,7 @@ func main() {
 		}
 	}()
 
-	if err := h.Listen(); err != nil {
+	if err := h.ListenAndServe(); err != nil {
 		fmt.Fprintf(os.Stderr, "listen: %s\n", err)
 	}
 }

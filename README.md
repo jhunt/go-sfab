@@ -41,7 +41,7 @@ func main() {
   }
 
   hub.AuthorizeKeys("authorized_keys")
-  hub.Listen()
+  hub.ListenAndServe()
 }
 ```
 
@@ -144,7 +144,7 @@ func main() {
       }
     }
   }()
-  hub.Listen()
+  hub.ListenAndServe()
 }
 ```
 

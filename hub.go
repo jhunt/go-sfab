@@ -50,6 +50,11 @@ type Hub struct {
 	//
 	listener net.Listener
 
+	// The x/crypto/ssh configuration for setting up the
+	// server <-> client communication channel(s).
+	//
+	config *ssh.ServerConfig
+
 	// A directory of registered agents.
 	agents map[string]chan Message
 
@@ -58,12 +63,7 @@ type Hub struct {
 	keys *KeyMaster
 }
 
-// Listen binds a network socket for the Hub, listens for incoming
-// SSH connections on it, and then services those agents, distributing
-// messages via a session channel and an exec request, each.
-//
-// You probably want to run this in the main goroutine, much like
-// net/http's ListenAndServe().
+// Listen binds a network socket for the Hub.
 //
 func (h *Hub) Listen() error {
 	h.lock()
@@ -78,7 +78,7 @@ func (h *Hub) Listen() error {
 		return fmt.Errorf("missing HostKey in Hub object.")
 	}
 
-	certChecker := &ssh.CertChecker{
+	ck := &ssh.CertChecker{
 		IsUserAuthority: func(key ssh.PublicKey) bool {
 			return false
 		},
@@ -91,18 +91,31 @@ func (h *Hub) Listen() error {
 		},
 	}
 
-	config := &ssh.ServerConfig{
-		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-			return certChecker.Authenticate(conn, key)
-		},
+	h.config = &ssh.ServerConfig{
+		PublicKeyCallback: ck.Authenticate,
 	}
-
-	config.AddHostKey(h.HostKey)
+	h.config.AddHostKey(h.HostKey)
 
 	var err error
 	h.listener, err = net.Listen(h.IPProto, h.Bind)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// Serve handls inbound cnnections on the listening socket, and
+// services those agents, distributing messages via a session
+// channel and an exec request, each.
+//
+// It is the caller's responsibility to call Listen() before
+// invoking this method, or to dispense with both and just use
+// ListenAndServe().
+//
+func (h *Hub) Serve() error {
+	if h.listener == nil {
+		return fmt.Errorf("this hub has no listener (did you forget to call Listen() first?)")
 	}
 
 	id := 0
@@ -116,7 +129,7 @@ func (h *Hub) Listen() error {
 		}
 
 		log.Debugf("[hub conn %d] inbound connection accepted; starting SSH handshake...", id)
-		c, chans, reqs, err := ssh.NewServerConn(socket, config)
+		c, chans, reqs, err := ssh.NewServerConn(socket, h.config)
 		if err != nil {
 			continue
 		}
@@ -256,6 +269,22 @@ func (h *Hub) Listen() error {
 			c.Close()
 		}(id)
 	}
+}
+
+// ListenAndServe combines both the Listen() and Serve()
+// methods into a convenient helper method that runs both,
+// serially, and returns whichever error pops up first.
+//
+// You probably want to run this in the main goroutine, much like
+// net/http's ListenAndServe().
+//
+func (h *Hub) ListenAndServe() error {
+	err := h.Listen()
+	if err != nil {
+		return err
+	}
+
+	return h.Serve()
 }
 
 func (h *Hub) authorizeKey(agent string, key ssh.PublicKey) {
