@@ -32,10 +32,9 @@ type Agent struct {
 	//
 	Identity string
 
-	// Path on the filesystem to the SSH Private Key to use for connecting
-	// to upstream sFAB Hubs.
+	// Private Key to use for connecting to upstream sFAB Hubs.
 	//
-	PrivateKeyFile string
+	PrivateKey ssh.Signer
 
 	// How long to wait for an upstream Hub to connect.
 	//
@@ -78,22 +77,17 @@ func (a *Agent) Connect(proto, host string, handler Handler) error {
 		return fmt.Errorf("missing Identity in Agent object.")
 	}
 
-	if a.PrivateKeyFile == "" {
-		return fmt.Errorf("missing PrivateKeyFile in Agent object.")
+	if a.PrivateKey == nil {
+		return fmt.Errorf("missing PrivateKey in Agent object.")
 	}
 
 	if a.Timeout == 0 {
 		a.Timeout = DefaultTimeout
 	}
 
-	key, err := loadPrivateKey(a.PrivateKeyFile)
-	if err != nil {
-		return err
-	}
-
 	config := &ssh.ClientConfig{
 		User:    a.Identity,
-		Auth:    []ssh.AuthMethod{ssh.PublicKeys(key)},
+		Auth:    []ssh.AuthMethod{ssh.PublicKeys(a.PrivateKey)},
 		Timeout: a.Timeout,
 	}
 	if a.keys != nil {

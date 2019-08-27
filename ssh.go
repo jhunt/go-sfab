@@ -1,14 +1,15 @@
 package sfab
 
 import (
-	"encoding/binary"
-	"fmt"
 	"io/ioutil"
 
 	"golang.org/x/crypto/ssh"
 )
 
-func loadPrivateKey(path string) (ssh.Signer, error) {
+// PrivateKeyFromFile reads the given file, parses a single
+// private key (in PEM format) from it, and returns that.
+//
+func PrivateKeyFromFile(path string) (ssh.Signer, error) {
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -17,40 +18,52 @@ func loadPrivateKey(path string) (ssh.Signer, error) {
 	return ssh.ParsePrivateKey(b)
 }
 
-func withAuthKeys(path string, fn func(string, ssh.PublicKey)) error {
-	b, err := ioutil.ReadFile(path)
+// PrivateKeyFromFile reads the given file, parses a single
+// private key (in PEM format) from it, extracts the publici
+// key from it, and returns that.
+//
+func PublicKeyFromFile(path string) (ssh.PublicKey, error) {
+	key, err := PrivateKeyFromFile(path)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	for {
-		key, user, _, rest, err := ssh.ParseAuthorizedKey(b)
-		if err != nil {
-			// ran out of keys...
-			break
-		}
-
-		fn(user, key)
-		b = rest
-	}
-
-	return nil
+	return key.PublicKey(), nil
 }
 
-func ignoreNewChannels(in <-chan ssh.NewChannel) {
-	for ch := range in {
-		ch.Reject(ssh.Prohibited, fmt.Sprintf("read my lips -- no new %s channels", ch.ChannelType()))
-	}
+// PrivateKeyFromBytes parses a single private key (in PEM
+// format) from the passed byte slice, and returns it.
+//
+func PrivateKeyFromBytes(pem []byte) (ssh.Signer, error) {
+	return ssh.ParsePrivateKey(pem)
 }
 
-func ignoreGlobalRequests(ch <-chan *ssh.Request) {
-	for r := range ch {
-		r.Reply(false, nil)
+// PublicKeyFromBytes parses a single private key (in PEM
+// format) from the passed byte slice, extracts the public
+// key from it, and returns it.
+//
+func PublicKeyFromBytes(pem []byte) (ssh.PublicKey, error) {
+	key, err := PrivateKeyFromBytes(pem)
+	if err != nil {
+		return nil, err
 	}
+	return key.PublicKey(), nil
 }
 
-func exited(rc int) []byte {
-	b := make([]byte, 4)
-	binary.BigEndian.PutUint32(b, uint32(rc))
-	return b
+// PrivateKeyFromBytes parses a single private key (in PEM
+// format) from the passed string, and returns it.
+//
+func PrivateKeyFromString(pem string) (ssh.Signer, error) {
+	return ssh.ParsePrivateKey([]byte(pem))
+}
+
+// PublicKeyFromBytes parses a single private key (in PEM
+// format) from the passed string, extracts the public key
+// from it, and returns it.
+//
+func PublicKeyFromString(pem string) (ssh.PublicKey, error) {
+	key, err := PrivateKeyFromString(pem)
+	if err != nil {
+		return nil, err
+	}
+	return key.PublicKey(), nil
 }

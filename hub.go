@@ -29,10 +29,9 @@ type Hub struct {
 	//
 	IPProto string
 
-	// Path on the filesystem to the SSH Private Key to use
-	// for the SSH server component of this Hub.
+	// Private Key to use for the server component of this Hub.
 	//
-	HostKeyFile string
+	HostKey ssh.Signer
 
 	// How frequently to send KeepAlive messages to connected
 	// agents, to keep their TCP transport channels open.
@@ -75,13 +74,8 @@ func (h *Hub) Listen() error {
 		h.IPProto = "tcp4"
 	}
 
-	if h.HostKeyFile == "" {
-		return fmt.Errorf("missing HostKeyFile in Hub object.")
-	}
-
-	hostKey, err := loadPrivateKey(h.HostKeyFile)
-	if err != nil {
-		return err
+	if h.HostKey == nil {
+		return fmt.Errorf("missing HostKey in Hub object.")
 	}
 
 	certChecker := &ssh.CertChecker{
@@ -103,8 +97,9 @@ func (h *Hub) Listen() error {
 		},
 	}
 
-	config.AddHostKey(hostKey)
+	config.AddHostKey(h.HostKey)
 
+	var err error
 	h.listener, err = net.Listen(h.IPProto, h.Bind)
 	if err != nil {
 		return err

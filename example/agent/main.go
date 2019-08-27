@@ -45,14 +45,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	key, err := sfab.PrivateKeyFromFile("example/id_rsa")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to load agent private key: %s\n", err)
+		os.Exit(1)
+	}
 	a := sfab.Agent{
-		Identity:       os.Args[1],
-		Timeout:        30 * time.Second,
-		PrivateKeyFile: "example/id_rsa",
+		Identity:   os.Args[1],
+		Timeout:    30 * time.Second,
+		PrivateKey: key,
 	}
 
-	err := a.Connect("tcp4", "127.0.0.1:4771", jsonnet)
-	if err != nil {
+	if err := a.Connect("tcp4", "127.0.0.1:4771", jsonnet); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err)
 		os.Exit(2)
 	}

@@ -15,10 +15,15 @@ func main() {
 		Level: "debug",
 	})
 
+	key, err := sfab.PrivateKeyFromFile("example/host_key")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to load host private key: %s\n", err)
+		os.Exit(1)
+	}
 	h := &sfab.Hub{
-		Bind:        "127.0.0.1:4771",
-		HostKeyFile: "example/host_key",
-		KeepAlive:   10 * time.Second,
+		Bind:      "127.0.0.1:4771",
+		HostKey:   key,
+		KeepAlive: 10 * time.Second,
 	}
 
 	if err := h.AuthorizeKeys("example/id_rsa.pub"); err != nil {
