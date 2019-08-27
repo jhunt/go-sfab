@@ -69,9 +69,14 @@ func main() {
     PrivateKeyFile: "id_rsa",
   }
 
-  agent.Connect("tcp4", "hub.fqdn:4000", func (msg []byte, out io.Writer) {
-    // ...
-  })
+  handler := func(msg []byte, stdout, stderr io.Writer) (int, error) {
+
+    // ... do something useful here ...
+
+    return 0, nil
+  }
+
+  agent.Connect("tcp4", "hub.fqdn:4000", handler)
 }
 ```
 
@@ -168,13 +173,20 @@ func main() {
     PrivateKeyFile: "id_rsa",
   }
 
-  agent.Connect("tcp4", "hub.fqdn:4000", func (msg []byte, out io.Writer) {
+  handler := func(msg []byte, stdout, stderr io.Writer) (int, error) {
+
     if string(msg) == "reconcile(x)" {
-      fmt.Fprintf(out, "BEGIN RECONCILIATION\n")
+      fmt.Fprintf(stdout, "BEGIN RECONCILIATION\n")
       reconciliation()
-      fmt.Fprintf(out, "END RECONCILIATION\n")
+      fmt.Fprintf(stdout, "END RECONCILIATION\n")
+      return 0, nil
     }
-  })
+
+    fmt.Fprintf(stderr, "I'm sorry; I don't know how to '%s'\n", string(msg))
+    return 1, nil
+  }
+
+  agent.Connect("tcp4", "hub.fqdn:4000", handler)
 }
 ```
 
@@ -192,6 +204,40 @@ If the Agent has left (or has not yet connected), the Hub will
 respond to the caller accordingly:
 
 ![No Such Agent](docs/no-such-agent.png)
+
+
+Halting an Agent
+----------------
+
+At times, you may want an _in-line_ method of terminating an
+Agent on behalf of a Client, through the Hub.  The handler
+function that gets passed to the Agent's `Connect()` method
+can return an error to signal this condition.  The Agent will
+process the error (logging it, mostly), and then break out of its
+main event loop, effectively shutting down.
+
+Note that this error will not propagate to the caller of
+`Connect()`; the error returned by that function is intended
+solely to signal a _problem_ handling the connection, and exiting
+early is not problematic.
+
+Here's an example:
+
+```go
+handler := func(msg []byte, stdout, stderr io.Writer) (int, error) {
+
+  if string(msg) == "EXEUNT" {
+    fmt.Fprintf(stdout, "exiting...\n")
+    return 0, fmt.Errorf("exit requested")
+  }
+
+  // ... other, more useful work here ...
+
+  return 0, nil
+}
+
+agent.Connect("tcp4", "hub.fqdn:4000", handler)
+```
 
 
 Contributing

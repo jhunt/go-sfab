@@ -11,27 +11,33 @@ import (
 	"github.com/jhunt/go-sfab"
 )
 
-func jsonnet(cmd []byte, out io.Writer) {
+func jsonnet(cmd []byte, stdout io.Writer, stderr io.Writer) (int, error) {
 	var x map[string]interface{}
+
+	fmt.Fprintf(stderr, "debug:: unmarshaling payload [%s]...\n", string(cmd))
+	fmt.Fprintf(stderr, "debug::   if you prefer hex: [% x]...\n", cmd)
 	err := json.Unmarshal(cmd, &x)
 	if err != nil {
-		fmt.Fprintf(out, "ERROR: %s\n", err)
-		return
+		fmt.Fprintf(stderr, "ERROR: %s\n", err)
+		return 1, err
 	}
 
 	b, err := json.MarshalIndent(x, "json >> ", " . ")
 	if err != nil {
-		fmt.Fprintf(out, "ERROR: %s\n", err)
-		return
+		fmt.Fprintf(stderr, "ERROR: %s\n", err)
+		return 1, err
 	}
 
-	output := func(f string, args ...interface{}) {
-		fmt.Fprintf(out, f, args...)
+	write := func(f string, args ...interface{}) {
+		fmt.Fprintf(stdout, f, args...)
 		fmt.Fprintf(os.Stderr, f, args...)
 	}
-	output("-----------------[ output ]-------------\n")
-	output("json >> %s\n", string(b))
-	output("-----------------[ ====== ]-------------\n\n")
+	write("-----------------[ output ]-------------\n")
+	write("json >> %s\n", string(b))
+	write("-----------------[ ====== ]-------------\n\n")
+
+	fmt.Fprintf(stderr, "debug:: exiting 0\n")
+	return 0, nil
 }
 
 func main() {

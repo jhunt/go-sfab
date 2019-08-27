@@ -34,6 +34,18 @@ func main() {
 	run := 1
 	go func() {
 		for {
+			if run%100 == 0 {
+				fmt.Fprintf(os.Stderr, "telling (some-agent) to exit...\n")
+				replies, err := h.Send("some-agent", []byte(fmt.Sprintf(`/part`, run)))
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "uh-oh: %s\n", err)
+				}
+				go func() {
+					for range replies {
+					}
+				}()
+			}
+
 			if run%5 == 0 {
 				fmt.Fprintf(os.Stderr, "waiting 5s for next job dispatch to (some-agent)...\n")
 				time.Sleep(5 * time.Second)

@@ -16,11 +16,16 @@ import (
 const DefaultTimeout time.Duration = 30 * time.Second
 
 // A Handler is the primary workhorse of the Hub + Agent distributed
-// orchestration engine.  Each Handler will be passed the opaque message
-// payload from the Hub as its first argument (a slice of bytes, arbitrarily
-// long), and an output stream to write responses / output to.
+// orchestration engine.
 //
-type Handler func([]byte, io.Writer)
+// Each Handler will be passed the opaque message payload from the Hub as
+// its first argument (a slice of bytes, arbitrarily long), and two output
+// streams: one for standard output and the other for standard error.
+//
+// A Handler function returns two values: a Unix-style integer exit code,
+// and an error that (if non-nil) will terminate the Agent's main loop.
+//
+type Handler func(payload []byte, stdout io.Writer, stderr io.Writer) (rc int, err error)
 
 // An Agent represents a client that connects to a Hub over SSH, and awaits
 // instructions on what to do.  Each Agent has an identity (its name and
@@ -137,12 +142,22 @@ func (a *Agent) Connect(proto, host string, handler Handler) error {
 			r.Reply(true, nil)
 			var payload struct{ Value []byte }
 			if err := ssh.Unmarshal(r.Payload, &payload); err != nil {
-				return err
+				log.Errorf("[agent %s] unable to unmarshal payload from upstream hub: %s", a.Identity, err)
+				continue
 			}
 
 			log.Debugf("[agent %s] received `exec' payload of [%s]", a.Identity, string(payload.Value))
-			handler(payload.Value, ch)
-			ch.SendRequest("exit-status", false, exited(0))
+			rc, err := handler(payload.Value, ch, ch.Stderr())
+			ch.SendRequest("exit-status", false, exited(rc))
+			if err != nil {
+				log.Errorf("[agent %s] handler returned error: %s", a.Identity, err)
+				log.Errorf("[agent %s] terminating...", a.Identity)
+
+				log.Debugf("[agent %s] closing connection...", a.Identity)
+				ch.Close()
+				return nil
+			}
+
 			break
 		}
 
