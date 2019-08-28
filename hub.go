@@ -273,6 +273,23 @@ func (h *Hub) IgnoreReplies(ch chan *Response) {
 	}
 }
 
+// Agents() returns a list of all registered
+// (and current!) Agent names, to allow customers
+// to blast out messages to _everyone_ if they so
+// desire.
+//
+func (h *Hub) Agents() []string {
+	h.lock()
+	defer h.unlock()
+
+	agents := make([]string, 0)
+	for k := range h.agents {
+		agents = append(agents, k)
+	}
+
+	return agents
+}
+
 // KnowsAgent checks the Hub's agent directory to see if
 // a named agent has registered with this Hub.
 //
