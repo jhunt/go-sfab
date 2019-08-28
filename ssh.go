@@ -68,9 +68,13 @@ func PublicKeyFromPrivateKeyString(pem string) (ssh.PublicKey, error) {
 	return key.PublicKey(), nil
 }
 
+func parsePublicKey(b []byte) (ssh.PublicKey, error) {
+	k, _, _, _, err := ssh.ParseAuthorizedKey(b)
+	return k, err
+}
+
 // PublicKeyFromFile reads the given file, parses a public key
-// from it (in OpenSSH Wire Format, sec 6.6 of RFC-4253), and
-// returns it.
+// from it (in sshd(8) authorized_keys format), and returns it.
 //
 func PublicKeyFromFile(path string) (ssh.PublicKey, error) {
 	b, err := ioutil.ReadFile(path)
@@ -78,19 +82,19 @@ func PublicKeyFromFile(path string) (ssh.PublicKey, error) {
 		return nil, err
 	}
 
-	return ssh.ParsePublicKey(b)
+	return parsePublicKey(b)
 }
 
-// PublicKeyFromBytes parses a public key (in OpenSSH Wire Format,
-// sec 6.6 of RFC-4253), from the passed byte slice, and returns it.
+// PublicKeyFromBytes parses a public key (in sshd(8) authorized_keys
+// format), from the passed byte slice, and returns it.
 //
 func PublicKeyFromBytes(b []byte) (ssh.PublicKey, error) {
-	return ssh.ParsePublicKey(b)
+	return parsePublicKey(b)
 }
 
-// PublicKeyFromString parses a public key (in OpenSSH Wire Format,
-// sec 6.6 of RFC-4253), from the passed string, and returns it.
+// PublicKeyFromString parses a public key (in sshd(8) authorized_keys
+// format), from the passed string, and returns it.
 //
 func PublicKeyFromString(s string) (ssh.PublicKey, error) {
-	return ssh.ParsePublicKey([]byte(s))
+	return parsePublicKey([]byte(s))
 }
