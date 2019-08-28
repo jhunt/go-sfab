@@ -262,6 +262,12 @@ func (h *Hub) Send(agent string, message []byte, timeout time.Duration) (chan *R
 	}
 }
 
+// IgnoreReplies takes a response channel from a
+// call to Send() and discards all of the responses
+// that are sent across.
+//
+// It's perfect for a goroutine!
+//
 func (h *Hub) IgnoreReplies(ch chan *Response) {
 	for range ch {
 	}
