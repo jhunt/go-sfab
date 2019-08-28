@@ -143,6 +143,9 @@ func main() {
         if msg.IsStdout() or msg.IsStderr() {
           fmt.Printf("%s\n", msg.Text())
 
+        } else if msg.IsError() {
+          fmt.Fprintf(os.Stderr, "oops: %s\n", msg.Error())
+
         } else if msg.IsExit() {
           fmt.Fprintf(os.Stderr, "command exited %d\n", msg.ExitCode())
         }

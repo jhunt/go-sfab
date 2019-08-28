@@ -9,6 +9,48 @@ import (
 	"github.com/jhunt/go-sfab"
 )
 
+func pause(ms int) {
+	fmt.Fprintf(os.Stderr, "waiting %dms for next job dispatch to (some-agent)...\n", ms)
+	time.Sleep(time.Duration(ms) * time.Millisecond)
+	fmt.Fprintf(os.Stderr, "woke up; resuming job dispatch...\n")
+}
+
+func work(h *sfab.Hub, run int) {
+	fmt.Fprintf(os.Stderr, "run %d: running command...\n", run)
+	replies, err := h.Send("some-agent", []byte(fmt.Sprintf(`{"run":"%d"}`, run)), 2*time.Second)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "uh-oh: %s\n", err)
+
+	} else {
+		fmt.Fprintf(os.Stderr, "run %d: command running...\n", run)
+
+		go func() {
+			for r := range replies {
+				if r.IsStdout() {
+					fmt.Printf("run %d STDOUT | %s\n", run, r.Text())
+				} else if r.IsStderr() {
+					fmt.Printf("run %d STDERR | %s\n", run, r.Text())
+				} else if r.IsExit() {
+					fmt.Printf("run %d EXIT   | command exited %d\n", run, r.ExitCode())
+				} else if r.IsError() {
+					fmt.Printf("run %d ERROR  | %s\n", run, r.Error())
+				}
+			}
+		}()
+	}
+}
+
+func part(h *sfab.Hub) {
+	fmt.Fprintf(os.Stderr, "telling (some-agent) to exit...\n")
+
+	replies, err := h.Send("some-agent", []byte(`/part`), 2*time.Second)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "uh-oh: %s\n", err)
+	}
+
+	go h.IgnoreReplies(replies)
+}
+
 func main() {
 	log.SetupLogging(log.LogConfig{
 		Type:  "console",
@@ -34,43 +76,13 @@ func main() {
 	run := 1
 	go func() {
 		for {
-			if run%100 == 0 {
-				fmt.Fprintf(os.Stderr, "telling (some-agent) to exit...\n")
-				replies, err := h.Send("some-agent", []byte(fmt.Sprintf(`/part`, run)))
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "uh-oh: %s\n", err)
-				}
-				go func() {
-					for range replies {
-					}
-				}()
+			for i := 0; i < 3; i++ {
+				run += 1
+				work(h, run)
+				pause(200)
 			}
-
-			if run%5 == 0 {
-				fmt.Fprintf(os.Stderr, "waiting 5s for next job dispatch to (some-agent)...\n")
-				time.Sleep(5 * time.Second)
-				fmt.Fprintf(os.Stderr, "woke up; resuming job dispatch...\n")
-			}
-
-			fmt.Fprintf(os.Stderr, "run %d: running command...\n", run)
-			replies, err := h.Send("some-agent", []byte(fmt.Sprintf(`{"run":"%d"}`, run)))
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "uh-oh: %s\n", err)
-			} else {
-				fmt.Fprintf(os.Stderr, "run %d: command running...\n", run)
-				go func(run int) {
-					for r := range replies {
-						if r.IsStdout() {
-							fmt.Printf("run %d STDOUT | %s\n", run, r.Text())
-						} else if r.IsStderr() {
-							fmt.Printf("run %d STDERR | %s\n", run, r.Text())
-						} else if r.IsExit() {
-							fmt.Printf("run %d EXIT   | command exited %d\n", run, r.ExitCode())
-						}
-					}
-				}(run)
-			}
-			run += 1
+			part(h)
+			pause(500)
 		}
 	}()
 

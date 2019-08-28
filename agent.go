@@ -128,7 +128,8 @@ func (a *Agent) Connect(proto, host string, handler Handler) error {
 		log.Debugf("[agent %s] accepting '%s' request and starting up channel...", a.Identity, newch.ChannelType())
 		ch, reqs, err := newch.Accept()
 		if err != nil {
-			return err
+			log.Errorf("[agent %s] failed to accept new '%s' channel: %s", a.Identity, newch.ChannelType(), err)
+			return nil
 		}
 
 		for r := range reqs {
