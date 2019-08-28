@@ -72,6 +72,21 @@ func (m *KeyMaster) Authorized(subject string, key ssh.PublicKey) bool {
 	return t && ok
 }
 
+// Provide a callback function that can be used by SSH servers
+// to whitelist authorized user keys during SSH connection netotiation.
+//
+func (m *KeyMaster) UserKeyCallback() func(ssh.ConnMetadata, ssh.PublicKey) (*ssh.Permissions, error) {
+	return func(c ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+		if m.Authorized(c.User(), key) {
+			return nil, nil
+		}
+		if m.Authorized("*", key) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("unknown public key")
+	}
+}
+
 // Provide a callback function that can be used by SSH clients
 // to whitelist authorized host keys during SSH connection negotiation.
 //
@@ -81,6 +96,9 @@ func (m *KeyMaster) HostKeyCallback() ssh.HostKeyCallback {
 			return nil
 		}
 		if m.Authorized(remote.String(), key) {
+			return nil
+		}
+		if m.Authorized("*", key) {
 			return nil
 		}
 		return fmt.Errorf("unrecognized host key")

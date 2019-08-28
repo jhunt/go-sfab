@@ -77,16 +77,13 @@ func (h *Hub) Listen() error {
 		return fmt.Errorf("missing HostKey in Hub object.")
 	}
 
+	if h.keys == nil {
+		h.keys = &KeyMaster{}
+	}
 	ck := &ssh.CertChecker{
+		UserKeyFallback: h.keys.UserKeyCallback(),
 		IsUserAuthority: func(key ssh.PublicKey) bool {
 			return false
-		},
-
-		UserKeyFallback: func(c ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-			if h.keys != nil && h.keys.Authorized(c.User(), key) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("unknown public key")
 		},
 	}
 
