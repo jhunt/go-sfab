@@ -23,6 +23,12 @@ type Hub struct {
 	//
 	Bind string
 
+	// Whether or not to allow connecting agents to finish
+	// connecting before their private keys have been authorized
+	// by the hub (or its operators).
+	//
+	AllowUnauthorizedAgents bool
+
 	// Which IP protocol (tcp4 or tcp6) to use for binding
 	// the server component of this sFAB Hub.
 	//
@@ -81,9 +87,7 @@ func (h *Hub) Listen() error {
 		return fmt.Errorf("missing HostKey in Hub object.")
 	}
 
-	if h.keys == nil {
-		h.keys = &KeyMaster{}
-	}
+	h.init()
 	ck := &ssh.CertChecker{
 		UserKeyFallback: h.keys.UserKeyCallback(),
 		IsUserAuthority: func(key ssh.PublicKey) bool {
@@ -131,17 +135,18 @@ func (h *Hub) Serve() error {
 			continue
 		}
 
-		log.Debugf("inbound connection accepted; starting SSH handshake...")
+		log.Debugf("[hub] inbound connection accepted; starting SSH handshake...")
 		c, chans, reqs, err := ssh.NewServerConn(socket, h.config)
 		if err != nil {
 			log.Debugf("[hub] failed to negotiate SSH transport: %s", err)
 			continue
 		}
 
+		log.Infof("[hub] registering agent with public key: %s\n", c.Permissions.Extensions[PublicKeyExtensionName])
 		connection, err := h.register(c.User(), c)
 		if err != nil {
 			log.Debugf("[hub] failed to register agent '%s': %s", c.User(), err)
-			c.Close()
+			c.Conn.Close()
 			continue
 		}
 		go connection.Serve(chans, reqs, h.KeepAlive)
@@ -164,10 +169,16 @@ func (h *Hub) ListenAndServe() error {
 	return h.Serve()
 }
 
-func (h *Hub) authorizeKey(agent string, key ssh.PublicKey) {
+func (h *Hub) init() {
 	if h.keys == nil {
-		h.keys = &KeyMaster{}
+		h.keys = &KeyMaster{
+			strict: !h.AllowUnauthorizedAgents,
+		}
 	}
+}
+
+func (h *Hub) authorizeKey(agent string, key ssh.PublicKey) {
+	h.init()
 	h.keys.Authorize(key, agent)
 }
 
@@ -185,9 +196,7 @@ func (h *Hub) AuthorizeKey(agent string, key ssh.PublicKey) {
 }
 
 func (h *Hub) deauthorizeKey(agent string, key ssh.PublicKey) {
-	if h.keys == nil {
-		h.keys = &KeyMaster{}
-	}
+	h.init()
 	h.keys.Deauthorize(key, agent)
 }
 
@@ -247,20 +256,23 @@ func (h *Hub) Send(agent string, message []byte, timeout time.Duration) (chan *R
 	h.unlock()
 
 	if ok {
-		msg := Message{
-			responses: make(chan *Response),
-			payload:   message,
-		}
-		select {
-		case c.messages <- msg:
-			return msg.responses, nil
+		if h.keys.Authorized(agent, c.key) {
+			msg := Message{
+				responses: make(chan *Response),
+				payload:   message,
+			}
+			select {
+			case c.messages <- msg:
+				return msg.responses, nil
 
-		case <-time.After(timeout):
-			return nil, fmt.Errorf("agent did not respond within %ds", int(timeout.Seconds()))
+			case <-time.After(timeout):
+				return nil, fmt.Errorf("agent did not respond within %ds", int(timeout.Seconds()))
+			}
+		} else {
+			return nil, fmt.Errorf("agent found but not anthorized: %s", agent)
 		}
-
 	} else {
-		return nil, fmt.Errorf("no such agent")
+		return nil, fmt.Errorf("agent not found: %s", agent)
 	}
 }
 
@@ -326,7 +338,6 @@ func (h *Hub) unlock() {
 func (h *Hub) register(name string, conn *ssh.ServerConn) (*connection, error) {
 	h.lock()
 	defer h.unlock()
-
 	if _, found := h.agents[name]; found {
 		return nil, fmt.Errorf("agent '%s' already registered", name)
 	}
@@ -335,6 +346,8 @@ func (h *Hub) register(name string, conn *ssh.ServerConn) (*connection, error) {
 		ssh:      conn,
 		messages: make(chan Message),
 		hangup:   make(chan int),
+		identity: conn.User(),
+		key:      h.keys.PublicKeyUsed(conn),
 
 		done: func() {
 			h.lock()
@@ -349,4 +362,10 @@ func (h *Hub) register(name string, conn *ssh.ServerConn) (*connection, error) {
 	close(h.awaits[name])
 
 	return h.agents[name], nil
+}
+
+func (h *Hub) Authorizations() []Authorization {
+	h.lock()
+	defer h.unlock()
+	return h.keys.Authorizations()
 }
