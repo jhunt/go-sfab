@@ -252,8 +252,7 @@ func (h *Hub) Send(agent string, message []byte, timeout time.Duration) (chan *R
 	h.unlock()
 
 	if ok {
-		auth := h.keys.keys[c.key][agent]
-		if auth {
+		if h.keys.Authorized(agent, c.key) {
 			msg := Message{
 				responses: make(chan *Response),
 				payload:   message,
@@ -351,7 +350,7 @@ func (h *Hub) register(name string, conn *ssh.ServerConn) (*connection, error) {
 		h.activeAgentStatus = append(h.activeAgentStatus, &agentStatus{
 			Name:   h.agents[name].identity,
 			Key:    h.agents[name].key,
-			Status: h.keys.keys[name][h.agents[name].key],
+			Status: h.keys.Authorized(name, h.agents[name].key),
 		})
 	}
 
@@ -370,16 +369,4 @@ func (h *Hub) UpdateAgentStatus(name string, status bool) error {
 		}
 	}
 	return fmt.Errorf("Agent status not updated")
-}
-
-func (h *Hub) KeyMasterAuth(name string, key string, status bool) error {
-	if _, found := h.keys.keys[key]; found {
-		h.keys.keys[key][name] = status
-		err := h.UpdateAgentStatus(name, status)
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-	return fmt.Errorf("Agent not found in key master")
 }

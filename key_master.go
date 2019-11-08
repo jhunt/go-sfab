@@ -7,6 +7,14 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+type disposition int
+
+const (
+	UnknownDisposition disposition = 0
+	Authorized = 1
+	NotAuthorized = 2
+)
+
 // A KeyMaster handles the specifics of tracking which SSH key pairs
 // are acceptable for which subjects (either hostnames, IPs, or agent
 // names).  It provides primitives for authorizing and deauthorizing
@@ -17,58 +25,36 @@ type KeyMaster struct {
 	// A map of Public Key -> Subject -> t, indicating
 	// which keys we have authorized.
 	//
-	keys map[string]map[string]bool
+	keys map[string]map[string] disposition
 }
 
 // Authorize a key pair for one or more subjects (either hostnames,
 // IP addresses, or agent names).
 //
 func (m *KeyMaster) Authorize(key ssh.PublicKey, subjects ...string) {
-	k := fmt.Sprintf("%v", key.Marshal())
-
-	if m.keys == nil {
-		m.keys = make(map[string]map[string]bool)
-	}
-	if _, exists := m.keys[k]; !exists {
-		m.keys[k] = make(map[string]bool)
-	}
-
-	for _, s := range subjects {
-		m.keys[k][s] = true
-	}
+	m.track(key, Authorized, subjects...)
 }
 
 // Deauthorize a key pair for one or more subjects (either hostnames,
 // IP addresses, or agent names).
 //
 func (m *KeyMaster) Deauthorize(key ssh.PublicKey, subjects ...string) {
-	k := fmt.Sprintf("%v", key.Marshal())
-
-	if m.keys == nil {
-		m.keys = make(map[string]map[string]bool)
-	}
-	if _, exists := m.keys[k]; !exists {
-		m.keys[k] = make(map[string]bool)
-	}
-
-	for _, s := range subjects {
-		m.keys[k][s] = false
-	}
+	m.track(key, NotAuthorized, subjects...)
 }
 
-func (m *KeyMaster) track(key ssh.PublicKey, subjects ...string) string {
+func (m *KeyMaster) track(key ssh.PublicKey, disp disposition, subjects ...string) string {
 	k := fmt.Sprintf("%v", key.Marshal())
 
 	if m.keys == nil {
-		m.keys = make(map[string]map[string]bool)
+		m.keys = make(map[string]map[string]disposition)
 	}
 	if _, exists := m.keys[k]; !exists {
-		m.keys[k] = make(map[string]bool)
+		m.keys[k] = make(map[string]disposition)
 	}
 
 	for _, s := range subjects {
 		if _, exists := m.keys[k][s]; !exists {
-			m.keys[k][s] = false
+			m.keys[k][s] = disp
 		}
 	}
 	return k
@@ -79,6 +65,7 @@ func (m *KeyMaster) track(key ssh.PublicKey, subjects ...string) string {
 //
 func (m *KeyMaster) Authorized(subject string, key ssh.PublicKey) bool {
 	k := fmt.Sprintf("%v", key.Marshal())
+
 	if m.keys == nil {
 		return false
 	}
@@ -87,7 +74,7 @@ func (m *KeyMaster) Authorized(subject string, key ssh.PublicKey) bool {
 		return false
 	}
 	t, ok := m.keys[k][subject]
-	return t && ok
+	return ok && t == Authorized
 }
 
 // Provide a callback function that can be used by SSH servers
@@ -104,7 +91,7 @@ func (m *KeyMaster) UserKeyCallback() func(ssh.ConnMetadata, ssh.PublicKey) (*ss
 		// return nil, fmt.Errorf("unknown public key")
 		return &ssh.Permissions{
 			Extensions: map[string]string{
-				"shield-agent-pubkey": m.track(key, c.User()),
+				"shield-agent-pubkey": m.track(key, UnknownDisposition, c.User()),
 			},
 		}, nil
 	}

@@ -89,7 +89,7 @@ func main() {
 			if len(listActiveConnection) != 0 {
 				fmt.Println("OPERATOR AUTHORIZING AGENT")
 				agent := listActiveConnection[0]
-				h.KeyMasterAuth(agent.Name, agent.Key, true)
+				h.AuthorizeKey(agent.Name, agent.Key)
 				fmt.Println("OPERATOR AUTHORIZING AGENT SUCCESSFUL")
 			}
 		}
