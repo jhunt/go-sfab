@@ -60,6 +60,15 @@ type Hub struct {
 	// A KeyMaster, for tracking authorized Agent keys.
 	//
 	keys *KeyMaster
+
+	// List of agents that have been registered and their statuses
+	activeAgentStatus []*agentStatus
+}
+
+type agentStatus struct {
+	Name   string
+	Key    string
+	Status bool
 }
 
 // Listen binds a network socket for the Hub.
@@ -134,6 +143,7 @@ func (h *Hub) Serve() error {
 			continue
 		}
 
+		fmt.Printf("Registering agent with public key: %s\n", c.Permissions.Extensions["shield-agent-pubkey"])
 		connection, err := h.register(c.User(), c)
 		if err != nil {
 			log.Debugf("[hub] failed to register agent '%s': %s", c.User(), err)
@@ -242,20 +252,24 @@ func (h *Hub) Send(agent string, message []byte, timeout time.Duration) (chan *R
 	h.unlock()
 
 	if ok {
-		msg := Message {
-			responses: make(chan *Response),
-			payload:   message,
-		}
-		select {
-		case c.messages <- msg:
-			return msg.responses, nil
+		auth := h.keys.keys[c.key][agent]
+		if auth {
+			msg := Message{
+				responses: make(chan *Response),
+				payload:   message,
+			}
+			select {
+			case c.messages <- msg:
+				return msg.responses, nil
 
-		case <-time.After(timeout):
-			return nil, fmt.Errorf("agent did not respond within %ds", int(timeout.Seconds()))
+			case <-time.After(timeout):
+				return nil, fmt.Errorf("agent did not respond within %ds", int(timeout.Seconds()))
+			}
+		} else {
+			return nil, fmt.Errorf("Agent found but not anthorized")
 		}
-
 	} else {
-		return nil, fmt.Errorf("no such agent")
+		return nil, fmt.Errorf("Agent not found")
 	}
 }
 
@@ -317,6 +331,8 @@ func (h *Hub) register(name string, conn *ssh.ServerConn) (*connection, error) {
 		ssh:      conn,
 		messages: make(chan Message),
 		hangup:   make(chan int),
+		identity: conn.User(),
+		key:      conn.Permissions.Extensions["shield-agent-pubkey"],
 
 		done: func() {
 			h.lock()
@@ -324,5 +340,46 @@ func (h *Hub) register(name string, conn *ssh.ServerConn) (*connection, error) {
 			delete(h.agents, name)
 		},
 	}
+
+	found := false
+	for _, agent := range h.activeAgentStatus {
+		if agent.Name == name {
+			found = true
+		}
+	}
+	if !found {
+		h.activeAgentStatus = append(h.activeAgentStatus, &agentStatus{
+			Name:   h.agents[name].identity,
+			Key:    h.agents[name].key,
+			Status: h.keys.keys[name][h.agents[name].key],
+		})
+	}
+
 	return h.agents[name], nil
+}
+
+func (h *Hub) ActiveAgentConnection() []*agentStatus {
+	return h.activeAgentStatus
+}
+
+func (h *Hub) UpdateAgentStatus(name string, status bool) error {
+	for _, agent := range h.activeAgentStatus {
+		if agent.Name == name {
+			agent.Status = status
+			return nil
+		}
+	}
+	return fmt.Errorf("Agent status not updated")
+}
+
+func (h *Hub) KeyMasterAuth(name string, key string, status bool) error {
+	if _, found := h.keys.keys[key]; found {
+		h.keys.keys[key][name] = status
+		err := h.UpdateAgentStatus(name, status)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	return fmt.Errorf("Agent not found in key master")
 }

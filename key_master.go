@@ -56,6 +56,24 @@ func (m *KeyMaster) Deauthorize(key ssh.PublicKey, subjects ...string) {
 	}
 }
 
+func (m *KeyMaster) track(key ssh.PublicKey, subjects ...string) string {
+	k := fmt.Sprintf("%v", key.Marshal())
+
+	if m.keys == nil {
+		m.keys = make(map[string]map[string]bool)
+	}
+	if _, exists := m.keys[k]; !exists {
+		m.keys[k] = make(map[string]bool)
+	}
+
+	for _, s := range subjects {
+		if _, exists := m.keys[k][s]; !exists {
+			m.keys[k][s] = false
+		}
+	}
+	return k
+}
+
 // Checks whether or not a public key has been pre-authorized for a
 // given subject (either a hostname, IP address, or agent name).
 //
@@ -77,13 +95,18 @@ func (m *KeyMaster) Authorized(subject string, key ssh.PublicKey) bool {
 //
 func (m *KeyMaster) UserKeyCallback() func(ssh.ConnMetadata, ssh.PublicKey) (*ssh.Permissions, error) {
 	return func(c ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-		if m.Authorized(c.User(), key) {
-			return nil, nil
-		}
-		if m.Authorized("*", key) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("unknown public key")
+		// if m.Authorized(c.User(), key) {
+		// 	return nil, nil
+		// }
+		// if m.Authorized("*", key) {
+		// 	return nil, nil
+		// }
+		// return nil, fmt.Errorf("unknown public key")
+		return &ssh.Permissions{
+			Extensions: map[string]string{
+				"shield-agent-pubkey": m.track(key, c.User()),
+			},
+		}, nil
 	}
 }
 

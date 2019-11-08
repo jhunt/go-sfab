@@ -57,7 +57,7 @@ func main() {
 		Level: "debug",
 	})
 
-	key, err := sfab.PrivateKeyFromFile("example/host_key")
+	key, err := sfab.PrivateKeyFromFile("host_key")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to load host private key: %s\n", err)
 		os.Exit(1)
@@ -68,7 +68,7 @@ func main() {
 		KeepAlive: 10 * time.Second,
 	}
 
-	if err := h.AuthorizeKeys("example/id_rsa.pub"); err != nil {
+	if err := h.AuthorizeKeys("id_rsa.pub"); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to authorize keys: %s\n", err)
 		os.Exit(1)
 	}
