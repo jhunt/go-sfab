@@ -45,7 +45,7 @@ func part(h *sfab.Hub) {
 
 	replies, err := h.Send("agent@example.com", []byte(`/part`), 2*time.Second)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "uh-oh: %s\n", err)
+		// fmt.Fprintf(os.Stderr, "uh-oh: %s\n", err)
 	}
 
 	go h.IgnoreReplies(replies)
@@ -68,7 +68,22 @@ func main() {
 		HostKey:   key,
 		KeepAlive: 10 * time.Second,
 	}
-	//h.AuthorizeKeys("/Users/srini/go/src/github.com/jhunt/go-sfab/example2/agent/id_rsa.pub")
+
+	go func() {
+		ticker := time.NewTicker(3 * time.Second)
+		for {
+			for t := range ticker.C {
+				listAgents := h.ActiveAgentConnection()
+				for _, agent := range listAgents {
+					agentPubKey, err := h.GetPublicKeyFromSHA(agent.Key)
+					if err != nil {
+						fmt.Printf("%s %s\n", t, err)
+					}
+					h.AuthorizeKey(agent.Name, agentPubKey)
+				}
+			}
+		}
+	}()
 
 	run := 1
 	go func() {
@@ -79,19 +94,7 @@ func main() {
 				pause(200)
 			}
 			part(h)
-			listActiveConnection := h.ActiveAgentConnection()
-			for _, agentS := range listActiveConnection {
-				fmt.Println("NAME: ", agentS.Name)
-				fmt.Println("KEY: ", agentS.Key)
-				fmt.Println("Status: ", agentS.Status)
-			}
 			pause(500)
-			if len(listActiveConnection) != 0 {
-				fmt.Println("OPERATOR AUTHORIZING AGENT")
-				agent := listActiveConnection[0]
-				h.AuthorizeKey(agent.Name, agent.Key)
-				fmt.Println("OPERATOR AUTHORIZING AGENT SUCCESSFUL")
-			}
 		}
 	}()
 

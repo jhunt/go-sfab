@@ -5,7 +5,7 @@ import (
 )
 
 var (
-	AgentNotFoundError = errors.New("agent not found")
+	AgentNotFoundError      = errors.New("agent not found")
 	AgentNotAuthorizedError = errors.New("agent not authorized")
 )
 

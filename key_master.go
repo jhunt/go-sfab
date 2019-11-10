@@ -11,8 +11,8 @@ type disposition int
 
 const (
 	UnknownDisposition disposition = 0
-	Authorized = 1
-	NotAuthorized = 2
+	Authorized                     = 1
+	NotAuthorized                  = 2
 )
 
 // A KeyMaster handles the specifics of tracking which SSH key pairs
@@ -22,10 +22,14 @@ const (
 // the rest of the x/crypto/ssh library.
 //
 type KeyMaster struct {
-	// A map of Public Key -> Subject -> t, indicating
+	// A map of FingerprintSHA256 -> Subject -> t, indicating
 	// which keys we have authorized.
 	//
-	keys map[string]map[string] disposition
+	keys map[string]map[string]disposition
+
+	// A map of FinverprintSHA256 -> Public key
+	//
+	shaToPublickey map[string]ssh.PublicKey
 }
 
 // Authorize a key pair for one or more subjects (either hostnames,
@@ -43,20 +47,27 @@ func (m *KeyMaster) Deauthorize(key ssh.PublicKey, subjects ...string) {
 }
 
 func (m *KeyMaster) track(key ssh.PublicKey, disp disposition, subjects ...string) string {
-	k := fmt.Sprintf("%v", key.Marshal())
+	k := fmt.Sprintf("%v", ssh.FingerprintSHA256(key))
 
 	if m.keys == nil {
 		m.keys = make(map[string]map[string]disposition)
 	}
 	if _, exists := m.keys[k]; !exists {
 		m.keys[k] = make(map[string]disposition)
+		m.shaToPublickey = make(map[string]ssh.PublicKey)
 	}
 
 	for _, s := range subjects {
 		if _, exists := m.keys[k][s]; !exists {
 			m.keys[k][s] = disp
+			m.shaToPublickey[k] = key
+		} else {
+			if disp != UnknownDisposition {
+				m.keys[k][s] = disp
+			}
 		}
 	}
+	fmt.Println("###### Auth Key: ###### ", k)
 	return k
 }
 
@@ -64,13 +75,14 @@ func (m *KeyMaster) track(key ssh.PublicKey, disp disposition, subjects ...strin
 // given subject (either a hostname, IP address, or agent name).
 //
 func (m *KeyMaster) Authorized(subject string, key ssh.PublicKey) bool {
-	k := fmt.Sprintf("%v", key.Marshal())
+	k := fmt.Sprintf("%v", ssh.FingerprintSHA256(key))
 
 	if m.keys == nil {
 		return false
 	}
 
 	if _, ok := m.keys[k]; !ok {
+		println("#########    NOT SEEN    ##########")
 		return false
 	}
 	t, ok := m.keys[k][subject]
@@ -82,13 +94,6 @@ func (m *KeyMaster) Authorized(subject string, key ssh.PublicKey) bool {
 //
 func (m *KeyMaster) UserKeyCallback() func(ssh.ConnMetadata, ssh.PublicKey) (*ssh.Permissions, error) {
 	return func(c ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-		// if m.Authorized(c.User(), key) {
-		// 	return nil, nil
-		// }
-		// if m.Authorized("*", key) {
-		// 	return nil, nil
-		// }
-		// return nil, fmt.Errorf("unknown public key")
 		return &ssh.Permissions{
 			Extensions: map[string]string{
 				"shield-agent-pubkey": m.track(key, UnknownDisposition, c.User()),
@@ -113,4 +118,12 @@ func (m *KeyMaster) HostKeyCallback() ssh.HostKeyCallback {
 		}
 		return fmt.Errorf("unrecognized host key")
 	}
+}
+
+func (m *KeyMaster) GetPublicKeyFromSHA(key string) (ssh.PublicKey, error) {
+	if _, found := m.shaToPublickey[key]; !found {
+		return nil, fmt.Errorf("Couldn't not find agent public key for fingerprint: %s", key)
+	}
+
+	return m.shaToPublickey[key], nil
 }

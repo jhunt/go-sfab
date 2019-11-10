@@ -187,6 +187,7 @@ func (h *Hub) AuthorizeKey(agent string, key ssh.PublicKey) {
 	defer h.unlock()
 
 	h.authorizeKey(agent, key)
+	h.updateAgentStatus(agent, true)
 }
 
 func (h *Hub) deauthorizeKey(agent string, key ssh.PublicKey) {
@@ -207,6 +208,7 @@ func (h *Hub) DeauthorizeKey(agent string, key ssh.PublicKey) {
 	defer h.unlock()
 
 	h.deauthorizeKey(agent, key)
+	h.updateAgentStatus(agent, false)
 }
 
 // AuthorizeKeys reads the given file, which is expected to
@@ -252,7 +254,8 @@ func (h *Hub) Send(agent string, message []byte, timeout time.Duration) (chan *R
 	h.unlock()
 
 	if ok {
-		if h.keys.Authorized(agent, c.key) {
+		agentPubKey := h.keys.shaToPublickey[c.key]
+		if h.keys.Authorized(agent, agentPubKey) {
 			msg := Message{
 				responses: make(chan *Response),
 				payload:   message,
@@ -265,10 +268,10 @@ func (h *Hub) Send(agent string, message []byte, timeout time.Duration) (chan *R
 				return nil, fmt.Errorf("agent did not respond within %ds", int(timeout.Seconds()))
 			}
 		} else {
-			return nil, fmt.Errorf("Agent found but not anthorized")
+			return nil, fmt.Errorf("Agent found but not anthorized: %s", agent)
 		}
 	} else {
-		return nil, fmt.Errorf("Agent not found")
+		return nil, fmt.Errorf("Agent not found: %s", agent)
 	}
 }
 
@@ -347,10 +350,11 @@ func (h *Hub) register(name string, conn *ssh.ServerConn) (*connection, error) {
 		}
 	}
 	if !found {
+		agentPubKey := h.keys.shaToPublickey[h.agents[name].key]
 		h.activeAgentStatus = append(h.activeAgentStatus, &agentStatus{
 			Name:   h.agents[name].identity,
 			Key:    h.agents[name].key,
-			Status: h.keys.Authorized(name, h.agents[name].key),
+			Status: h.keys.Authorized(name, agentPubKey),
 		})
 	}
 
@@ -361,12 +365,24 @@ func (h *Hub) ActiveAgentConnection() []*agentStatus {
 	return h.activeAgentStatus
 }
 
-func (h *Hub) UpdateAgentStatus(name string, status bool) error {
+func (h *Hub) updateAgentStatus(name string, status bool) error {
 	for _, agent := range h.activeAgentStatus {
 		if agent.Name == name {
 			agent.Status = status
 			return nil
 		}
 	}
-	return fmt.Errorf("Agent status not updated")
+
+	return fmt.Errorf("Agent status not updated: %s", name)
+}
+
+func (h *Hub) getPublicKeyFromSHA(key string) (ssh.PublicKey, error) {
+	return h.keys.GetPublicKeyFromSHA(key)
+}
+
+func (h *Hub) GetPublicKeyFromSHA(key string) (ssh.PublicKey, error) {
+	h.lock()
+	defer h.unlock()
+
+	return h.getPublicKeyFromSHA(key)
 }
