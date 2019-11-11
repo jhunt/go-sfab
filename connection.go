@@ -40,8 +40,19 @@ type connection struct {
 	//
 	done func()
 
-	key string
+	// The SSH (RSA) Public Key that the agent used in the authentication
+	// phase of the underlying SSH protocol transport connection handshake.
+	// We keep this on-hand so that we can authorize and deauthorize via
+	// the Hub's KeyMaster as needed.
+	//
+	key ssh.PublicKey
 
+	// The identity (user@domain) that the agent used in the authentication
+	// phase of the underlying SSH protocol transport connection handshake.
+	// We keep this on-hand so that we can authorize and deauthorize via
+	// the Hub's KeyMaster as needed, and for finding agents by name,
+	// to send them work to do.
+	//
 	identity string
 }
 

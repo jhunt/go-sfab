@@ -72,14 +72,12 @@ func main() {
 	go func() {
 		ticker := time.NewTicker(3 * time.Second)
 		for {
-			for t := range ticker.C {
-				listAgents := h.ActiveAgentConnection()
-				for _, agent := range listAgents {
-					agentPubKey, err := h.GetPublicKeyFromSHA(agent.Key)
-					if err != nil {
-						fmt.Printf("%s %s\n", t, err)
+			for range ticker.C {
+				for _, agent := range h.Authorizations() {
+					if agent.Known || agent.Authorized {
+						continue
 					}
-					h.AuthorizeKey(agent.Name, agentPubKey)
+					h.AuthorizeKey(agent.Identity, agent.PublicKey)
 				}
 			}
 		}
