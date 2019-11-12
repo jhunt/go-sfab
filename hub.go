@@ -127,17 +127,18 @@ func (h *Hub) Serve() error {
 			continue
 		}
 
-		log.Debugf("inbound connection accepted; starting SSH handshake...")
+		log.Debugf("[hub] inbound connection accepted; starting SSH handshake...")
 		c, chans, reqs, err := ssh.NewServerConn(socket, h.config)
 		if err != nil {
 			log.Debugf("[hub] failed to negotiate SSH transport: %s", err)
 			continue
 		}
 
-		fmt.Printf("Registering agent with public key: %s\n", c.Permissions.Extensions["shield-agent-pubkey"])
+		log.Infof("[hub] registering agent with public key: %s\n", c.Permissions.Extensions[PublicKeyExtensionName])
 		connection, err := h.register(c.User(), c)
 		if err != nil {
 			log.Debugf("[hub] failed to register agent '%s': %s", c.User(), err)
+			c.Conn.Close()
 			continue
 		}
 		go connection.Serve(chans, reqs, h.KeepAlive)
@@ -256,10 +257,10 @@ func (h *Hub) Send(agent string, message []byte, timeout time.Duration) (chan *R
 				return nil, fmt.Errorf("agent did not respond within %ds", int(timeout.Seconds()))
 			}
 		} else {
-			return nil, fmt.Errorf("Agent found but not anthorized: %s", agent)
+			return nil, fmt.Errorf("agent found but not anthorized: %s", agent)
 		}
 	} else {
-		return nil, fmt.Errorf("Agent not found: %s", agent)
+		return nil, fmt.Errorf("agent not found: %s", agent)
 	}
 }
 
@@ -312,7 +313,6 @@ func (h *Hub) unlock() {
 func (h *Hub) register(name string, conn *ssh.ServerConn) (*connection, error) {
 	h.lock()
 	defer h.unlock()
-
 	if _, found := h.agents[name]; found {
 		return nil, fmt.Errorf("agent '%s' already registered", name)
 	}

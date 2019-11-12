@@ -86,7 +86,6 @@ func (m *KeyMaster) Authorized(subject string, key ssh.PublicKey) bool {
 	}
 
 	if _, ok := m.keys[k]; !ok {
-		println("#########    NOT SEEN    ##########")
 		return false
 	}
 	v, ok := m.keys[k][subject]
