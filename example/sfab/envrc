@@ -1,0 +1,7 @@
+export SFAB_HUB=127.0.0.1:6022
+export SFAB_HUB_BIND=0.0.0.0:6022
+
+export SFAB_HUB_API=http://127.0.0.1:6080
+export SFAB_HUB_LISTEN=0.0.0.0:6080
+
+export SFAB_HUB_HOST_KEY=example/sfab/host_key

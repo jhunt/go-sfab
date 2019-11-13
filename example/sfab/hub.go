@@ -177,7 +177,6 @@ func Hub() {
 
 		var in struct {
 			Identity    string
-			Fingerprint string
 		}
 		if err := json.Unmarshal(b, &in); err != nil {
 			w.WriteHeader(500)
@@ -185,30 +184,26 @@ func Hub() {
 			return
 		}
 
-		for _, authz := range h.Authorizations() {
-			if authz.Identity == in.Identity && authz.KeyFingerprint == in.Fingerprint && authz.Authorized {
-				replies, err := h.Send(in.Identity, []byte("ping"), 2*time.Second)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "uh-oh: %s\n", err)
-				} else {
-					go func() {
-						for r := range replies {
-							if r.IsStdout() {
-								appendIdentity := fmt.Sprintf("%s,%s", in.Identity, r.Text())
-								responses = append(responses, appendIdentity)
-							} else if r.IsStderr() {
-								fmt.Printf("STDERR | %s\n", r.Text())
-							}
-						}
-					}()
+		replies, err := h.Send(in.Identity, []byte("ping"), 2*time.Second)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "uh-oh: %s\n", err)
+		} else {
+			go func() {
+				for r := range replies {
+					if r.IsStdout() {
+						appendIdentity := fmt.Sprintf("%s,%s", in.Identity, r.Text())
+						responses = append(responses, appendIdentity)
+					} else if r.IsStderr() {
+						fmt.Printf("STDERR | %s\n", r.Text())
+					}
 				}
-			}
+			}()
 		}
 
 		w.WriteHeader(200)
 		fmt.Fprintf(w, "OK!\n")
 	})
-	if err := http.ListenAndServe(opts.Hub.API, nil); err != nil {
+	if err := http.ListenAndServe(opts.Hub.Listen, nil); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 	}
 }
