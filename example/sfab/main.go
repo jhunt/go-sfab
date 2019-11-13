@@ -24,26 +24,40 @@ var opts struct {
 	Agent struct {
 		Hub  string `cli:"-H, --hub"   env:"SFAB_HUB"`
 		Key  string `cli:"-k, --key"   env:"SFAB_AGENT_KEY"`
-		Name string `cli:"-n, --name" env:"SFAB_AGENT_NAME"`
+		Name string `cli:"-n, --name"  env:"SFAB_AGENT_NAME"`
 	} `cli:"agent"`
 
 	Keys struct {
-		Hub string `cli:"-H, --hub"   env:"SFAB_HUB"`
+		API string `cli:"-a, --api"  env:"SFAB_HUB_API"`
 	} `cli:"keys"`
 
-	// USAGE: sfab ping -H ... agent@domain
+	Agents struct {
+		API string `cli:"-a, --api"  env:"SFAB_HUB_API"`
+	} `cli:"agents"`
+
+	Responses struct {
+		API string `cli:"-a, --api"  env:"SFAB_HUB_API"`
+	} `cli:"responses"`
+
+	// USAGE: sfab ping -a ... agent@domain ke:yf:in:ge:rp:ri:nt
 	Ping struct {
-		Hub string `cli:"-H, --hub"   env:"SFAB_HUB"`
+		API            string `cli:"-a, --api"         env:"SFAB_HUB_API"`
+		Name           string `cli:"-n, --name"        env:"SFAB_AGENT_NAME"`
+		KeyFingerprint string `cli:"-f, --fingerprint" env:"SFAB_AGENT_FINGERPRINT"`
 	} `cli:"ping"`
 
-	// USAGE: sfab authz -H ... agent@domain ke:yf:in:ge:rp:ri:nt
+	// USAGE: sfab auth -a ... agent@domain ke:yf:in:ge:rp:ri:nt
 	Authorize struct {
-		Hub string `cli:"-H, --hub"   env:"SFAB_HUB"`
+		API            string `cli:"-a, --api"         env:"SFAB_HUB_API"`
+		Name           string `cli:"-n, --name"        env:"SFAB_AGENT_NAME"`
+		KeyFingerprint string `cli:"-f, --fingerprint" env:"SFAB_AGENT_FINGERPRINT"`
 	} `cli:"auth, authz, authorize"`
 
-	// USAGE: sfab deauthz -H ... agent@domain ke:yf:in:ge:rp:ri:nt
+	// USAGE: sfab deauth -a ... agent@domain ke:yf:in:ge:rp:ri:nt
 	Deauthorize struct {
-		Hub string `cli:"-H, --hub"   env:"SFAB_HUB"`
+		API            string `cli:"-a, --api"         env:"SFAB_HUB_API"`
+		Name           string `cli:"-n, --name"        env:"SFAB_AGENT_NAME"`
+		KeyFingerprint string `cli:"-f, --fingerprint" env:"SFAB_AGENT_FINGERPRINT"`
 	} `cli:"deauth, deauthz, deauthorize"`
 }
 
@@ -104,6 +118,87 @@ func main() {
 			os.Exit(1)
 		}
 		Agent()
+	} else if command == "keys" {
+		ok := true
+		if opts.Keys.API == "" {
+			fmt.Fprintf(os.Stderr, "Missing required --api parameter (or SFAB_HUB_API environment variable)\n")
+			ok = false
+		}
+		if !ok {
+			os.Exit(1)
+		}
+		Keys()
+	} else if command == "agents" {
+		ok := true
+		if opts.Agents.API == "" {
+			fmt.Fprintf(os.Stderr, "Missing required --api parameter (or SFAB_HUB_API environment variable)\n")
+			ok = false
+		}
+		if !ok {
+			os.Exit(1)
+		}
+		Agents()
+	} else if command == "responses" {
+		ok := true
+		if opts.Responses.API == "" {
+			fmt.Fprintf(os.Stderr, "Missing required --api parameter (or SFAB_HUB_API environment variable)\n")
+			ok = false
+		}
+		if !ok {
+			os.Exit(1)
+		}
+		Responses()
+	} else if command == "ping" {
+		ok := true
+		if opts.Ping.API == "" {
+			fmt.Fprintf(os.Stderr, "Missing required --api parameter (or SFAB_HUB_API environment variable)\n")
+			ok = false
+		}
+		if opts.Ping.Name == "" {
+			fmt.Fprintf(os.Stderr, "Missing required --name parameter (or SFAB_AGENT_Name)")
+			ok = false
+		}
+		if opts.Ping.KeyFingerprint == "" {
+			fmt.Fprintf(os.Stderr, "Missing required --key parameter (or SFAB_AGENT_KEY environment variable)")
+		}
+		if !ok {
+			os.Exit(1)
+		}
+		Ping()
+	} else if command == "auth" {
+		ok := true
+		if opts.Authorize.API == "" {
+			fmt.Fprintf(os.Stderr, "Missing required --api parameter (or SFAB_HUB_API environment variable)\n")
+			ok = false
+		}
+		if opts.Authorize.Name == "" {
+			fmt.Fprintf(os.Stderr, "Missing required --name parameter (or SFAB_AGENT_Name)")
+			ok = false
+		}
+		if opts.Authorize.KeyFingerprint == "" {
+			fmt.Fprintf(os.Stderr, "Missing required --key parameter (or SFAB_AGENT_KEY environment variable)")
+		}
+		if !ok {
+			os.Exit(1)
+		}
+		Authorize()
+	} else if command == "deauth" {
+		ok := true
+		if opts.Deauthorize.API == "" {
+			fmt.Fprintf(os.Stderr, "Missing required --api parameter (or SFAB_HUB_API environment variable)\n")
+			ok = false
+		}
+		if opts.Deauthorize.Name == "" {
+			fmt.Fprintf(os.Stderr, "Missing required --name parameter (or SFAB_AGENT_Name)")
+			ok = false
+		}
+		if opts.Deauthorize.KeyFingerprint == "" {
+			fmt.Fprintf(os.Stderr, "Missing required --key parameter (or SFAB_AGENT_KEY environment variable)")
+		}
+		if !ok {
+			os.Exit(1)
+		}
+		Deauthorize()
 	} else {
 		fmt.Fprintf(os.Stderr, "Command not recognized\n")
 		os.Exit(2)

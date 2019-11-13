@@ -7,13 +7,13 @@ import (
 	"net/http"
 )
 
-func Keys() {
-	resp, err := http.Get(fmt.Sprintf("%s/keys", opts.Keys.API))
+func Agents() {
+	resp, err := http.Get(fmt.Sprintf("%s/agents", opts.Keys.API))
 	if err != nil {
 		fmt.Errorf("No response from HUB")
 	}
-	defer resp.Body.Close()
 	keys, err := ioutil.ReadAll(resp.Body)
+	defer resp.Body.Close()
 	if err != nil {
 		log.Fatal(err)
 	}
