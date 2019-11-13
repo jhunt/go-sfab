@@ -45,7 +45,7 @@ func part(h *sfab.Hub) {
 
 	replies, err := h.Send("agent@example.com", []byte(`/part`), 2*time.Second)
 	if err != nil {
-		// fmt.Fprintf(os.Stderr, "uh-oh: %s\n", err)
+		fmt.Fprintf(os.Stderr, "uh-oh: %s\n", err)
 	}
 
 	go h.IgnoreReplies(replies)
