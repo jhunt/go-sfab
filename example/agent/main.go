@@ -58,7 +58,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	key, err := sfab.PrivateKeyFromFile("id_rsa")
+	key, err := sfab.PrivateKeyFromFile("example/id_rsa")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to load agent private key: %s\n", err)
 		os.Exit(1)
