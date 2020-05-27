@@ -1,10 +1,30 @@
 package sfab
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"io/ioutil"
 
 	"golang.org/x/crypto/ssh"
 )
+
+// GeneratePrivateKey create a new private (RSA) key,
+// and returns it as a ssh.Signer.
+//
+func GeneratePrivateKey(bits int) (ssh.Signer, error) {
+	key, err := rsa.GenerateKey(rand.Reader, bits)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate Private Key
+	err = key.Validate()
+	if err != nil {
+		return nil, err
+	}
+
+	return ssh.NewSignerFromKey(key)
+}
 
 // PrivateKeyFromFile reads the given file, parses a single
 // private key (in PEM format) from it, and returns that.

@@ -13,7 +13,7 @@ import (
 type connection struct {
 	// The underlying SSH server connection
 	//
-	ssh      *ssh.ServerConn
+	ssh *ssh.ServerConn
 
 	// The input message channel, which is directly used by
 	// the Hub Send() method to communicate to the goroutine
@@ -26,13 +26,13 @@ type connection struct {
 	// underlying TCP connection) in the face of a variety of
 	// failures (broken pipes, errors, protocol refusal, etc.)
 	//
-	hangup   chan int
+	hangup chan int
 
 	// Reapers are goroutines (represented by their messaging endpoints)
 	// that have subscribed to the keepalive goroutine, and are interested
 	// in knowing _when_ the underlying connection is closed, EOFs, etc.
 	//
-	reapers  []chan int
+	reapers []chan int
 
 	// A "cleanup" function to call when we shut down this
 	// connection.  Primarily used to unregister ourselves

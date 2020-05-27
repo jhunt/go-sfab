@@ -57,6 +57,9 @@ type Hub struct {
 	// A directory of registered agents.
 	agents map[string]*connection
 
+	// A directory of awaited agents.
+	awaits map[string]chan int
+
 	// A KeyMaster, for tracking authorized Agent keys.
 	//
 	keys *KeyMaster
@@ -67,6 +70,7 @@ type Hub struct {
 func (h *Hub) Listen() error {
 	h.lock()
 	h.agents = make(map[string]*connection)
+	h.awaits = make(map[string]chan int)
 	h.unlock()
 
 	if h.IPProto == "" {
@@ -137,6 +141,7 @@ func (h *Hub) Serve() error {
 		connection, err := h.register(c.User(), c)
 		if err != nil {
 			log.Debugf("[hub] failed to register agent '%s': %s", c.User(), err)
+			c.Close()
 			continue
 		}
 		go connection.Serve(chans, reqs, h.KeepAlive)
@@ -242,7 +247,7 @@ func (h *Hub) Send(agent string, message []byte, timeout time.Duration) (chan *R
 	h.unlock()
 
 	if ok {
-		msg := Message {
+		msg := Message{
 			responses: make(chan *Response),
 			payload:   message,
 		}
@@ -297,6 +302,19 @@ func (h *Hub) KnowsAgent(agent string) bool {
 	return ok
 }
 
+func (h *Hub) Await(agent string) chan int {
+	h.lock()
+	defer h.unlock()
+
+	if ch, ok := h.awaits[agent]; ok {
+		return ch
+	} else {
+		ch := make(chan int)
+		h.awaits[agent] = ch
+		return ch
+	}
+}
+
 func (h *Hub) lock() {
 	h.lk.Lock()
 }
@@ -324,5 +342,11 @@ func (h *Hub) register(name string, conn *ssh.ServerConn) (*connection, error) {
 			delete(h.agents, name)
 		},
 	}
+
+	if _, found := h.awaits[name]; !found {
+		h.awaits[name] = make(chan int)
+	}
+	close(h.awaits[name])
+
 	return h.agents[name], nil
 }
