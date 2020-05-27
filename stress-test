@@ -1,0 +1,26 @@
+#!/bin/sh
+set -e
+
+#
+# stress-test - Really stress test the test suite,
+# by raising the ulimit on a variety of platforms,
+# in some platform-specific ways, to ensure that
+# we can exercise the largest network test cases.
+#
+# You probably need to run this as root.
+#
+
+BIG=200000
+
+case $OSTYPE in
+*darwin*)
+	launchctl limit maxfiles $BIG $BIG
+	ulimit -n $BIG
+	;;
+
+*linux*)
+	ulimit -n $BIG
+	;;
+esac
+
+exec ginkgo .
