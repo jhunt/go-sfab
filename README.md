@@ -140,7 +140,7 @@ func main() {
       reply, _ := hub.Send("bob@postgres.ql", []byte("reconcile(x)"))
 
       for msg := range reply {
-        if msg.IsStdout() or msg.IsStderr() {
+        if msg.IsStdout() || msg.IsStderr() {
           fmt.Printf("%s\n", msg.Text())
 
         } else if msg.IsError() {
