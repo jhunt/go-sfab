@@ -1,10 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"time"
 
+	fmt "github.com/jhunt/go-ansi"
 	"github.com/jhunt/go-cli"
 	env "github.com/jhunt/go-envirotron"
 	"github.com/jhunt/go-sfab"
@@ -65,37 +65,44 @@ func main() {
 		fmt.Printf("\n")
 		fmt.Printf("COMMANDS\n")
 		fmt.Printf("\n")
-		fmt.Printf("  hub             Run an SFAB hub\n")
+		fmt.Printf("  @C{hub}             Run an SFAB hub\n")
 		fmt.Printf("\n")
-		fmt.Printf("    -b, --bind    What IP:port to bind the SSH endpoint on.\n")
-		fmt.Printf("    -a, --api     What IP:port to bind the HTTP API on.\n")
-		fmt.Printf("    -k, --key     Path to the private SSH host key.\n")
+		fmt.Printf("    -b, --bind    What IP:port to bind the SSH endpoint on. (@W{$SFAB_HUB_BIND})\n")
+		fmt.Printf("    -l, --listen  What IP:port to bind the HTTP API on. (@W{$SFAB_HUB_LISTEN})\n")
+		fmt.Printf("    -k, --key     Path to the private SSH host key. (@W{$SFAB_HUB_HOST_KEY})\n")
 		fmt.Printf("\n")
-		fmt.Printf("  agent NAME      Run an SFAB agent\n")
-		fmt.Printf("    -H, --hub     What IP:port of the hub to connect to.\n")
-		fmt.Printf("    -k, --key     Path to the agent's private SSH key.\n")
+		fmt.Printf("  @C{agent} NAME      Run an SFAB agent\n")
 		fmt.Printf("\n")
-		fmt.Printf("  keys            List known agents, their keys, and authorizations.\n")
-		fmt.Printf("    -a, --api     The full URL of the hub HTTP API.\n")
+		fmt.Printf("    -H, --hub     What IP:port of the hub to connect to. (@W{$SFAB_HUB})\n")
+		fmt.Printf("    -k, --key     Path to the agent's private SSH key. (@W{$SFAB_AGENT_KEY})\n")
 		fmt.Printf("\n")
-		fmt.Printf("  agents          List authorized agents, by name.\n")
-		fmt.Printf("    -a, --api     The full URL of the hub HTTP API.\n")
+		fmt.Printf("  @C{keys}            List known agents, their keys, and authorizations.\n")
 		fmt.Printf("\n")
-		fmt.Printf("  responses       Dump the responses from all agents.\n")
-		fmt.Printf("    -a, --api     The full URL of the hub HTTP API.\n")
+		fmt.Printf("    -a, --api     The full URL of the hub HTTP API. (@W{$SFAB_HUB})\n")
 		fmt.Printf("\n")
-		fmt.Printf("  auth AGENT      Authorize an agent (by name and key)\n")
-		fmt.Printf("    -a, --api     The full URL of the hub HTTP API.\n")
+		fmt.Printf("  @C{agents}          List authorized agents, by name.\n")
+		fmt.Printf("\n")
+		fmt.Printf("    -a, --api     The full URL of the hub HTTP API. (@W{$SFAB_HUB})\n")
+		fmt.Printf("\n")
+		fmt.Printf("  @C{responses}       Dump the responses from all agents.\n")
+		fmt.Printf("\n")
+		fmt.Printf("    -a, --api     The full URL of the hub HTTP API. (@W{$SFAB_HUB})\n")
+		fmt.Printf("\n")
+		fmt.Printf("  @C{auth} AGENT      Authorize an agent (by name and key)\n")
+		fmt.Printf("\n")
+		fmt.Printf("    -a, --api     The full URL of the hub HTTP API. (@W{$SFAB_HUB})\n")
+		fmt.Printf("    -f            SHA256 key fingerprint. (@W{$SFAB_AGENT_FINGERPRINT})\n")
+		fmt.Printf("\n")
+		fmt.Printf("  @C{deauth} AGENT    Deauthorize an agent (by name and key)\n")
+		fmt.Printf("\n")
+		fmt.Printf("    -a, --api     The full URL of the hub HTTP API. (@W{$SFAB_HUB})\n")
 		fmt.Printf("    -f            SHA256 key fingerprint.\n")
 		fmt.Printf("\n")
-		fmt.Printf("  deauth AGENT    Deauthorize an agent (by name and key)\n")
-		fmt.Printf("    -a, --api     The full URL of the hub HTTP API.\n")
-		fmt.Printf("    -f            SHA256 key fingerprint.\n")
-		fmt.Printf("\n")
-		fmt.Printf("  ping AGENT      Ping an agent, by identity.\n")
+		fmt.Printf("  @C{ping} AGENT      Ping an agent, by identity.\n")
 		fmt.Printf("                  Authorized agents should PONG us back.\n")
 		fmt.Printf("                  Unauthorized agents should not.\n")
-		fmt.Printf("    -a, --api     The full URL of the hub HTTP API.\n")
+		fmt.Printf("\n")
+		fmt.Printf("    -a, --api     The full URL of the hub HTTP API. (@W{$SFAB_HUB})\n")
 		fmt.Printf("\n")
 		os.Exit(0)
 	}
@@ -117,11 +124,14 @@ func main() {
 		if !ok {
 			os.Exit(1)
 		}
+		fmt.Fprintf(os.Stderr, "@M{sfab hub} starting  SSH server on @G{%s}\n", opts.Hub.Bind)
+		fmt.Fprintf(os.Stderr, "         starting HTTP server on @G{%s}\n", opts.Hub.Listen)
 		Hub()
+
 	} else if command == "agent" {
 		ok := true
 		if opts.Agent.Hub == "" {
-			fmt.Fprint(os.Stderr, "Missing required --hub parameter (or SFAB_HUB environment variable)\n")
+			fmt.Fprintf(os.Stderr, "Missing required --hub parameter (or SFAB_HUB environment variable)\n")
 			ok = false
 		}
 		if opts.Agent.Key == "" {
@@ -148,6 +158,7 @@ func main() {
 			PrivateKey: key,
 		}
 
+		fmt.Fprintf(os.Stderr, "@Y{sfab agent} connecting to hub at @M{%s}\n", opts.Agent.Hub)
 		err = a.Connect("tcp4", opts.Agent.Hub, jsonnet)
 		bail(err, "unable to connect to hub at '%s'", opts.Agent.Hub)
 		os.Exit(0)
