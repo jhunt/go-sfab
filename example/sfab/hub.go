@@ -178,7 +178,7 @@ func Hub() {
 		}
 
 		var in struct {
-			Identity    string
+			Identity string
 		}
 		if err := json.Unmarshal(b, &in); err != nil {
 			w.WriteHeader(500)

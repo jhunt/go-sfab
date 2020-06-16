@@ -1,14 +1,14 @@
 package main
 
 import (
-	"time"
-	"io"
-	"fmt"
-	"os"
-	"net/http"
-	"encoding/json"
 	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
 	"io/ioutil"
+	"net/http"
+	"os"
+	"time"
 )
 
 func get(url string) (string, error) {

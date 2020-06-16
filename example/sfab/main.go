@@ -1,13 +1,13 @@
 package main
 
 import (
-	"time"
 	"fmt"
 	"os"
+	"time"
 
-	"github.com/jhunt/go-sfab"
 	"github.com/jhunt/go-cli"
 	env "github.com/jhunt/go-envirotron"
+	"github.com/jhunt/go-sfab"
 )
 
 var opts struct {
