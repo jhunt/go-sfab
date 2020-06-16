@@ -269,7 +269,7 @@ func (h *Hub) Send(agent string, message []byte, timeout time.Duration) (chan *R
 				return nil, fmt.Errorf("agent did not respond within %ds", int(timeout.Seconds()))
 			}
 		} else {
-			return nil, fmt.Errorf("agent found but not anthorized: %s", agent)
+			return nil, fmt.Errorf("agent found but not authorized: %s", agent)
 		}
 	} else {
 		return nil, fmt.Errorf("agent not found: %s", agent)
