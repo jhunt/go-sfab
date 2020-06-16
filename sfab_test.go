@@ -19,7 +19,7 @@ func TestAllTheThings(t *testing.T) {
 }
 
 var _ = Describe("end-to-end", func() {
-	port := 4770
+	port := 5770
 	slack := func(cmd []byte, _, _ io.Writer) (int, error) {
 		return 0, nil
 	}
