@@ -243,6 +243,119 @@ agent.Connect("tcp4", "hub.fqdn:4000", handler)
 ```
 
 
+The Example SFAB Ping System
+============================
+
+This repository ships with a fully-functional, if a touch silly
+example implementation.  To build it:
+
+    $ go build ./example/sfab
+
+That will put a multi-call binary, named `sfab` in your current
+working directory (the root of the codebase).  The example system
+consists of a **hub**, which binds a loopback SSH server and an
+HTTP control module (also on loopback), an **agent** that connects
+to the SSH port and waits for PINGs to PONG back, and a handful of
+CLI sub-commands to interrogate the internal state of the hub and
+to poke the agents.
+
+![Screenshot of Example SFAB Ping System](docs/example.png)
+
+It also ships with an `envrc` that sets all the environment
+variables to make running a single hub + agent trivial:
+
+    $ source example/sfab/envrc
+
+To play along at home, run the following commands, in different
+terminal windows or tmux panes:
+
+    $ source example/sfab/envrc && ./sfab hub
+    $ source example/sfab/envrc && ./sfab agent test-agent
+    $ source example/sfab/envrc && watch ./sfab keys
+
+Then, you can ping the **test-agent** agent:
+
+    $ source example/sfab/envrc
+    $ ./sfab ping test-agent
+
+This should fail, since we haven't authorized the test-agent's
+key; we don't yet trust that agent.  To establish that trust:
+
+    $ source example/sfab/envrc  # if you hven't already...
+    $ ./sfab authz test-agent
+
+You'll notice that the `watch` command we ran will list the key as
+authorized now, and the agent as "known".  Test it out by pinging
+the agent again:
+
+    $ ./sfab ping test-agent
+
+This time, you should see some output from the hub, detailing the
+PONG response from the agent, and you should see some chatter on
+the agent pane / terminal about the receipt of a PING.
+
+You can deauthorize the test-agent by running:
+
+    $ ./sfab deauthz test-agent
+
+You can also get a list of all the PING / PONG exchanges by
+running:
+
+    $ ./sfab responses
+
+To play with it some more, refer to the built-in help:
+
+    $ ./sfab --help
+To play with it some more, refer to the built-in help:
+
+    $ ./sfab --help
+    sfab - An example implementation of SSH-Fabric
+
+    COMMANDS
+
+      hub             Run an SFAB hub
+
+        -b, --bind    What IP:port to bind the SSH endpoint on. ($SFAB_HUB_BIND)
+        -l, --listen  What IP:port to bind the HTTP API on. ($SFAB_HUB_LISTEN)
+        -k, --key     Path to the private SSH host key. ($SFAB_HUB_HOST_KEY)
+
+      agent NAME      Run an SFAB agent
+
+        -H, --hub     What IP:port of the hub to connect to. ($SFAB_HUB)
+        -k, --key     Path to the agent's private SSH key. ($SFAB_AGENT_KEY)
+
+      keys            List known agents, their keys, and authorizations.
+
+        -a, --api     The full URL of the hub HTTP API. ($SFAB_HUB)
+
+      agents          List authorized agents, by name.
+
+        -a, --api     The full URL of the hub HTTP API. ($SFAB_HUB)
+
+      responses       Dump the responses from all agents.
+
+        -a, --api     The full URL of the hub HTTP API. ($SFAB_HUB)
+
+      auth AGENT      Authorize an agent (by name and key)
+
+        -a, --api     The full URL of the hub HTTP API. ($SFAB_HUB)
+        -f            SHA256 key fingerprint. ($SFAB_AGENT_FINGERPRINT)
+
+      deauth AGENT    Deauthorize an agent (by name and key)
+
+        -a, --api     The full URL of the hub HTTP API. ($SFAB_HUB)
+        -f            SHA256 key fingerprint.
+
+      ping AGENT      Ping an agent, by identity.
+                      Authorized agents should PONG us back.
+                      Unauthorized agents should not.
+
+        -a, --api     The full URL of the hub HTTP API. ($SFAB_HUB)
+
+Go ahead!  Try spinning up some other agents, either reusing the
+existing `example/sfab/agent_key`, or generating a new one.
+
+
 Contributing
 ============
 
