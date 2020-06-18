@@ -36,7 +36,7 @@ type Hub struct {
 
 	// Private Key to use for the server component of this Hub.
 	//
-	HostKey ssh.Signer
+	HostKey PrivateKey
 
 	// How frequently to send KeepAlive messages to connected
 	// agents, to keep their TCP transport channels open.
@@ -188,7 +188,7 @@ func (h *Hub) authorizeKey(agent string, key ssh.PublicKey) {
 // This can be called dynamically, long after a call to Listen(),
 // or before.
 //
-func (h *Hub) AuthorizeKey(agent string, key ssh.PublicKey) {
+func (h *Hub) AuthorizeKey(agent string, key PublicKey) {
 	h.lock()
 	defer h.unlock()
 
@@ -206,7 +206,7 @@ func (h *Hub) deauthorizeKey(agent string, key ssh.PublicKey) {
 // This can be called dynamically, long after a call to Listen(),
 // or before.
 //
-func (h *Hub) DeauthorizeKey(agent string, key ssh.PublicKey) {
+func (h *Hub) DeauthorizeKey(agent string, key PublicKey) {
 	h.lock()
 	defer h.unlock()
 

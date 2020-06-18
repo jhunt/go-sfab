@@ -8,10 +8,18 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+type PrivateKey interface {
+	ssh.Signer
+}
+
+type PublicKey interface {
+	ssh.PublicKey
+}
+
 // GeneratePrivateKey create a new private (RSA) key,
-// and returns it as a ssh.Signer.
+// and returns it as a PrivateKey.
 //
-func GeneratePrivateKey(bits int) (ssh.Signer, error) {
+func GeneratePrivateKey(bits int) (PrivateKey, error) {
 	key, err := rsa.GenerateKey(rand.Reader, bits)
 	if err != nil {
 		return nil, err
@@ -29,7 +37,7 @@ func GeneratePrivateKey(bits int) (ssh.Signer, error) {
 // PrivateKeyFromFile reads the given file, parses a single
 // private key (in PEM format) from it, and returns that.
 //
-func PrivateKeyFromFile(path string) (ssh.Signer, error) {
+func PrivateKeyFromFile(path string) (PrivateKey, error) {
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -41,14 +49,14 @@ func PrivateKeyFromFile(path string) (ssh.Signer, error) {
 // PrivateKeyFromBytes parses a single private key (in PEM
 // format) from the passed byte slice, and returns it.
 //
-func PrivateKeyFromBytes(pem []byte) (ssh.Signer, error) {
+func PrivateKeyFromBytes(pem []byte) (PrivateKey, error) {
 	return ssh.ParsePrivateKey(pem)
 }
 
 // PrivateKeyFromString parses a single private key (in PEM
 // format) from the passed string, and returns it.
 //
-func PrivateKeyFromString(pem string) (ssh.Signer, error) {
+func PrivateKeyFromString(pem string) (PrivateKey, error) {
 	return ssh.ParsePrivateKey([]byte(pem))
 }
 
@@ -56,7 +64,7 @@ func PrivateKeyFromString(pem string) (ssh.Signer, error) {
 // single private key (in PEM format) from it, extracts the
 // public key from it, and returns that.
 //
-func PublicKeyFromPrivateKeyFile(path string) (ssh.PublicKey, error) {
+func PublicKeyFromPrivateKeyFile(path string) (PublicKey, error) {
 	key, err := PrivateKeyFromFile(path)
 	if err != nil {
 		return nil, err
@@ -68,7 +76,7 @@ func PublicKeyFromPrivateKeyFile(path string) (ssh.PublicKey, error) {
 // (in PEM format) from the passed byte slice, extracts the
 // public key from it, and returns it.
 //
-func PublicKeyFromPrivateKeyBytes(pem []byte) (ssh.PublicKey, error) {
+func PublicKeyFromPrivateKeyBytes(pem []byte) (PublicKey, error) {
 	key, err := PrivateKeyFromBytes(pem)
 	if err != nil {
 		return nil, err
@@ -80,7 +88,7 @@ func PublicKeyFromPrivateKeyBytes(pem []byte) (ssh.PublicKey, error) {
 // (in PEM format) from the passed string, extracts the public
 // key from it, and returns it.
 //
-func PublicKeyFromPrivateKeyString(pem string) (ssh.PublicKey, error) {
+func PublicKeyFromPrivateKeyString(pem string) (PublicKey, error) {
 	key, err := PrivateKeyFromString(pem)
 	if err != nil {
 		return nil, err
@@ -88,7 +96,7 @@ func PublicKeyFromPrivateKeyString(pem string) (ssh.PublicKey, error) {
 	return key.PublicKey(), nil
 }
 
-func parsePublicKey(b []byte) (ssh.PublicKey, error) {
+func parsePublicKey(b []byte) (PublicKey, error) {
 	k, _, _, _, err := ssh.ParseAuthorizedKey(b)
 	return k, err
 }
@@ -96,7 +104,7 @@ func parsePublicKey(b []byte) (ssh.PublicKey, error) {
 // PublicKeyFromFile reads the given file, parses a public key
 // from it (in sshd(8) authorized_keys format), and returns it.
 //
-func PublicKeyFromFile(path string) (ssh.PublicKey, error) {
+func PublicKeyFromFile(path string) (PublicKey, error) {
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -108,13 +116,13 @@ func PublicKeyFromFile(path string) (ssh.PublicKey, error) {
 // PublicKeyFromBytes parses a public key (in sshd(8) authorized_keys
 // format), from the passed byte slice, and returns it.
 //
-func PublicKeyFromBytes(b []byte) (ssh.PublicKey, error) {
+func PublicKeyFromBytes(b []byte) (PublicKey, error) {
 	return parsePublicKey(b)
 }
 
 // PublicKeyFromString parses a public key (in sshd(8) authorized_keys
 // format), from the passed string, and returns it.
 //
-func PublicKeyFromString(s string) (ssh.PublicKey, error) {
+func PublicKeyFromString(s string) (PublicKey, error) {
 	return parsePublicKey([]byte(s))
 }
