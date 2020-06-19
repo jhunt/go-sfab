@@ -8,7 +8,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func withAuthKeys(path string, fn func(string, ssh.PublicKey)) error {
+func withAuthKeys(path string, fn func(string, *PublicKey)) error {
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
 		return err
@@ -21,7 +21,9 @@ func withAuthKeys(path string, fn func(string, ssh.PublicKey)) error {
 			break
 		}
 
-		fn(user, key)
+		fn(user, &PublicKey{
+			pub: key,
+		})
 		b = rest
 	}
 

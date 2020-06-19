@@ -64,7 +64,7 @@ func (a *Agent) AcceptAnyHostKey() {
 // Authorize a specific Hub Host Key, which will be accepted from any Hub
 // with the name or IP address given as `host`.
 //
-func (a *Agent) AuthorizeKey(host string, key ssh.PublicKey) {
+func (a *Agent) AuthorizeKey(host string, key *PublicKey) {
 	if a.keys == nil {
 		a.keys = &KeyMaster{}
 	}
@@ -96,7 +96,7 @@ func (a *Agent) Connect(proto, host string, handler Handler) error {
 		Timeout: a.Timeout,
 	}
 	if a.keys != nil {
-		config.HostKeyCallback = a.keys.HostKeyCallback()
+		config.HostKeyCallback = a.keys.hostKeyCallback()
 	} else {
 		config.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 	}

@@ -19,7 +19,7 @@ const (
 
 type authorization struct {
 	disposition disposition
-	publicKey   ssh.PublicKey
+	publicKey   *PublicKey
 }
 
 // A KeyMaster handles the specifics of tracking which SSH key pairs
@@ -44,19 +44,23 @@ type KeyMaster struct {
 // Authorize a key pair for one or more subjects (either hostnames,
 // IP addresses, or agent names).
 //
-func (m *KeyMaster) Authorize(key ssh.PublicKey, subjects ...string) {
-	m.track(key, Authorized, subjects...)
+func (m *KeyMaster) Authorize(key *PublicKey, subjects ...string) {
+	if key != nil {
+		m.track(key, Authorized, subjects...)
+	}
 }
 
 // Deauthorize a key pair for one or more subjects (either hostnames,
 // IP addresses, or agent names).
 //
-func (m *KeyMaster) Deauthorize(key ssh.PublicKey, subjects ...string) {
-	m.track(key, NotAuthorized, subjects...)
+func (m *KeyMaster) Deauthorize(key *PublicKey, subjects ...string) {
+	if key != nil {
+		m.track(key, NotAuthorized, subjects...)
+	}
 }
 
-func (m *KeyMaster) track(key ssh.PublicKey, disp disposition, subjects ...string) string {
-	k := ssh.FingerprintSHA256(key)
+func (m *KeyMaster) track(key *PublicKey, disp disposition, subjects ...string) string {
+	k := ssh.FingerprintSHA256(key.pub)
 
 	if m.keys == nil {
 		m.keys = make(map[string]map[string]*authorization)
@@ -83,7 +87,14 @@ func (m *KeyMaster) track(key ssh.PublicKey, disp disposition, subjects ...strin
 // Checks whether or not a public key has been pre-authorized for a
 // given subject (either a hostname, IP address, or agent name).
 //
-func (m *KeyMaster) Authorized(subject string, key ssh.PublicKey) bool {
+func (m *KeyMaster) Authorized(subject string, key *PublicKey) bool {
+	if key == nil {
+		return false
+	}
+	return m.authorized(subject, key.pub)
+}
+
+func (m *KeyMaster) authorized(subject string, key ssh.PublicKey) bool {
 	k := fmt.Sprintf("%v", ssh.FingerprintSHA256(key))
 
 	if m.keys == nil {
@@ -100,12 +111,12 @@ func (m *KeyMaster) Authorized(subject string, key ssh.PublicKey) bool {
 // Provide a callback function that can be used by SSH servers
 // to whitelist authorized user keys during SSH connection netotiation.
 //
-func (m *KeyMaster) UserKeyCallback() func(ssh.ConnMetadata, ssh.PublicKey) (*ssh.Permissions, error) {
+func (m *KeyMaster) userKeyCallback() func(ssh.ConnMetadata, ssh.PublicKey) (*ssh.Permissions, error) {
 	return func(c ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 		var err error
-		pubkey := m.track(key, UnknownDisposition, c.User())
+		pubkey := m.track(&PublicKey{pub: key}, UnknownDisposition, c.User())
 
-		if m.strict && !m.Authorized(c.User(), key) {
+		if m.strict && !m.authorized(c.User(), key) {
 			err = fmt.Errorf("unknown or unauthorized agent key")
 		}
 
@@ -120,22 +131,22 @@ func (m *KeyMaster) UserKeyCallback() func(ssh.ConnMetadata, ssh.PublicKey) (*ss
 // Provide a callback function that can be used by SSH clients
 // to whitelist authorized host keys during SSH connection negotiation.
 //
-func (m *KeyMaster) HostKeyCallback() ssh.HostKeyCallback {
+func (m *KeyMaster) hostKeyCallback() ssh.HostKeyCallback {
 	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-		if m.Authorized(hostname, key) {
+		if m.authorized(hostname, key) {
 			return nil
 		}
-		if m.Authorized(remote.String(), key) {
+		if m.authorized(remote.String(), key) {
 			return nil
 		}
-		if m.Authorized("*", key) {
+		if m.authorized("*", key) {
 			return nil
 		}
 		return fmt.Errorf("unrecognized host key")
 	}
 }
 
-func (m *KeyMaster) PublicKeyUsed(conn *ssh.ServerConn) ssh.PublicKey {
+func (m *KeyMaster) publicKeyUsed(conn *ssh.ServerConn) *PublicKey {
 	k := conn.Permissions.Extensions[PublicKeyExtensionName]
 	if _, exists := m.keys[k]; !exists {
 		return nil
@@ -147,7 +158,7 @@ func (m *KeyMaster) PublicKeyUsed(conn *ssh.ServerConn) ssh.PublicKey {
 }
 
 type Authorization struct {
-	PublicKey      ssh.PublicKey
+	PublicKey      *PublicKey
 	Identity       string
 	KeyFingerprint string
 	Authorized     bool

@@ -16,8 +16,8 @@ type PrivateKey struct {
 	signer ssh.Signer
 }
 
-func (k PrivateKey) PublicKey() PublicKey {
-	return PublicKey{
+func (k PrivateKey) PublicKey() *PublicKey {
+	return &PublicKey{
 		pub: k.signer.PublicKey(),
 	}
 }

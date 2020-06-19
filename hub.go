@@ -89,7 +89,7 @@ func (h *Hub) Listen() error {
 
 	h.init()
 	ck := &ssh.CertChecker{
-		UserKeyFallback: h.keys.UserKeyCallback(),
+		UserKeyFallback: h.keys.userKeyCallback(),
 		IsUserAuthority: func(key ssh.PublicKey) bool {
 			return false
 		},
@@ -177,7 +177,7 @@ func (h *Hub) init() {
 	}
 }
 
-func (h *Hub) authorizeKey(agent string, key ssh.PublicKey) {
+func (h *Hub) authorizeKey(agent string, key *PublicKey) {
 	h.init()
 	h.keys.Authorize(key, agent)
 }
@@ -188,14 +188,14 @@ func (h *Hub) authorizeKey(agent string, key ssh.PublicKey) {
 // This can be called dynamically, long after a call to Listen(),
 // or before.
 //
-func (h *Hub) AuthorizeKey(agent string, key PublicKey) {
+func (h *Hub) AuthorizeKey(agent string, key *PublicKey) {
 	h.lock()
 	defer h.unlock()
 
-	h.authorizeKey(agent, key.pub)
+	h.authorizeKey(agent, key)
 }
 
-func (h *Hub) deauthorizeKey(agent string, key ssh.PublicKey) {
+func (h *Hub) deauthorizeKey(agent string, key *PublicKey) {
 	h.init()
 	h.keys.Deauthorize(key, agent)
 }
@@ -206,11 +206,11 @@ func (h *Hub) deauthorizeKey(agent string, key ssh.PublicKey) {
 // This can be called dynamically, long after a call to Listen(),
 // or before.
 //
-func (h *Hub) DeauthorizeKey(agent string, key PublicKey) {
+func (h *Hub) DeauthorizeKey(agent string, key *PublicKey) {
 	h.lock()
 	defer h.unlock()
 
-	h.deauthorizeKey(agent, key.pub)
+	h.deauthorizeKey(agent, key)
 }
 
 // AuthorizeKeys reads the given file, which is expected to
@@ -347,7 +347,7 @@ func (h *Hub) register(name string, conn *ssh.ServerConn) (*connection, error) {
 		messages: make(chan Message),
 		hangup:   make(chan int),
 		identity: conn.User(),
-		key:      h.keys.PublicKeyUsed(conn),
+		key:      h.keys.publicKeyUsed(conn),
 
 		done: func() {
 			h.lock()
