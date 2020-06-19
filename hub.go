@@ -192,7 +192,7 @@ func (h *Hub) AuthorizeKey(agent string, key PublicKey) {
 	h.lock()
 	defer h.unlock()
 
-	h.authorizeKey(agent, key)
+	h.authorizeKey(agent, key.pub)
 }
 
 func (h *Hub) deauthorizeKey(agent string, key ssh.PublicKey) {
@@ -210,7 +210,7 @@ func (h *Hub) DeauthorizeKey(agent string, key PublicKey) {
 	h.lock()
 	defer h.unlock()
 
-	h.deauthorizeKey(agent, key)
+	h.deauthorizeKey(agent, key.pub)
 }
 
 // AuthorizeKeys reads the given file, which is expected to
