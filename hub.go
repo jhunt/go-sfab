@@ -36,7 +36,7 @@ type Hub struct {
 
 	// Private Key to use for the server component of this Hub.
 	//
-	HostKey PrivateKey
+	HostKey *PrivateKey
 
 	// How frequently to send KeepAlive messages to connected
 	// agents, to keep their TCP transport channels open.
@@ -98,7 +98,7 @@ func (h *Hub) Listen() error {
 	h.config = &ssh.ServerConfig{
 		PublicKeyCallback: ck.Authenticate,
 	}
-	h.config.AddHostKey(h.HostKey)
+	h.config.AddHostKey(h.HostKey.signer)
 
 	var err error
 	h.listener, err = net.Listen(h.IPProto, h.Bind)

@@ -39,7 +39,7 @@ type Agent struct {
 
 	// Private Key to use for connecting to upstream sFAB Hubs.
 	//
-	PrivateKey ssh.Signer
+	PrivateKey *PrivateKey
 
 	// How long to wait for an upstream Hub to connect.
 	//
@@ -92,7 +92,7 @@ func (a *Agent) Connect(proto, host string, handler Handler) error {
 
 	config := &ssh.ClientConfig{
 		User:    a.Identity,
-		Auth:    []ssh.AuthMethod{ssh.PublicKeys(a.PrivateKey)},
+		Auth:    []ssh.AuthMethod{ssh.PublicKeys(a.PrivateKey.signer)},
 		Timeout: a.Timeout,
 	}
 	if a.keys != nil {

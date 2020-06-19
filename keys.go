@@ -3,13 +3,29 @@ package sfab
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
+	"fmt"
 	"io/ioutil"
 
 	"golang.org/x/crypto/ssh"
 )
 
-type PrivateKey interface {
-	ssh.Signer
+type PrivateKey struct {
+	key    *rsa.PrivateKey
+	signer ssh.Signer
+}
+
+func (k PrivateKey) PublicKey() PublicKey {
+	return k.signer.PublicKey()
+}
+
+func (k PrivateKey) Encode() []byte {
+	return x509.MarshalPKCS1PrivateKey(k.key)
+}
+
+func (k PrivateKey) EncodeString() string {
+	return string(k.Encode())
 }
 
 type PublicKey interface {
@@ -19,7 +35,7 @@ type PublicKey interface {
 // GeneratePrivateKey create a new private (RSA) key,
 // and returns it as a PrivateKey.
 //
-func GeneratePrivateKey(bits int) (PrivateKey, error) {
+func GeneratePrivateKey(bits int) (*PrivateKey, error) {
 	key, err := rsa.GenerateKey(rand.Reader, bits)
 	if err != nil {
 		return nil, err
@@ -31,33 +47,66 @@ func GeneratePrivateKey(bits int) (PrivateKey, error) {
 		return nil, err
 	}
 
-	return ssh.NewSignerFromKey(key)
+	// Fashion a signer that is acceptable to crypto/ssh
+	signer, err := ssh.NewSignerFromKey(key)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PrivateKey{
+		key:    key,
+		signer: signer,
+	}, nil
 }
 
 // PrivateKeyFromFile reads the given file, parses a single
 // private key (in PEM format) from it, and returns that.
 //
-func PrivateKeyFromFile(path string) (PrivateKey, error) {
+func PrivateKeyFromFile(path string) (*PrivateKey, error) {
+	// Read the whole file into memory
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	return ssh.ParsePrivateKey(b)
+	return PrivateKeyFromBytes(b)
 }
 
 // PrivateKeyFromBytes parses a single private key (in PEM
 // format) from the passed byte slice, and returns it.
 //
-func PrivateKeyFromBytes(pem []byte) (PrivateKey, error) {
-	return ssh.ParsePrivateKey(pem)
+func PrivateKeyFromBytes(b []byte) (*PrivateKey, error) {
+	// Parse PEM into its binary representation (DER / ASN.1)
+	// (ignoring any follow-on PEM blocks...)
+	block, _ := pem.Decode(b)
+	if block == nil {
+		return nil, fmt.Errorf("unrecognized private key format: no pem blocks found")
+	}
+
+	// Parse our (now DER / ASN.1) key according to PKCS#1
+	// (which is *only* for RSA private keys!)
+	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fashion a signer that is acceptable to crypto/ssh
+	signer, err := ssh.NewSignerFromKey(key)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PrivateKey{
+		key:    key,
+		signer: signer,
+	}, nil
 }
 
 // PrivateKeyFromString parses a single private key (in PEM
 // format) from the passed string, and returns it.
 //
-func PrivateKeyFromString(pem string) (PrivateKey, error) {
-	return ssh.ParsePrivateKey([]byte(pem))
+func PrivateKeyFromString(s string) (*PrivateKey, error) {
+	return PrivateKeyFromBytes([]byte(s))
 }
 
 // PublicKeyFromPrivateKeyFile reads the given file, parses a
@@ -69,31 +118,31 @@ func PublicKeyFromPrivateKeyFile(path string) (PublicKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	return key.PublicKey(), nil
+	return key.signer.PublicKey(), nil
 }
 
 // PublicKeyFromPrivateKeyBytes parses a single private key
 // (in PEM format) from the passed byte slice, extracts the
 // public key from it, and returns it.
 //
-func PublicKeyFromPrivateKeyBytes(pem []byte) (PublicKey, error) {
-	key, err := PrivateKeyFromBytes(pem)
+func PublicKeyFromPrivateKeyBytes(b []byte) (PublicKey, error) {
+	key, err := PrivateKeyFromBytes(b)
 	if err != nil {
 		return nil, err
 	}
-	return key.PublicKey(), nil
+	return key.signer.PublicKey(), nil
 }
 
 // PublicKeyFromPrivateKeyString parses a single private key
 // (in PEM format) from the passed string, extracts the public
 // key from it, and returns it.
 //
-func PublicKeyFromPrivateKeyString(pem string) (PublicKey, error) {
-	key, err := PrivateKeyFromString(pem)
+func PublicKeyFromPrivateKeyString(s string) (PublicKey, error) {
+	key, err := PrivateKeyFromString(s)
 	if err != nil {
 		return nil, err
 	}
-	return key.PublicKey(), nil
+	return key.signer.PublicKey(), nil
 }
 
 func parsePublicKey(b []byte) (PublicKey, error) {
