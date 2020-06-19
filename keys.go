@@ -32,6 +32,14 @@ type PublicKey interface {
 	ssh.PublicKey
 }
 
+func (k PublicKey) Encode() []byte {
+	return k.(ssh.PublicKey).Marshal()
+}
+
+func (k PublicKey) EncodeString() string {
+	return string(k.Encode())
+}
+
 // GeneratePrivateKey create a new private (RSA) key,
 // and returns it as a PrivateKey.
 //
