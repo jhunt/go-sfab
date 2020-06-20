@@ -249,7 +249,7 @@ The Example SFAB Ping System
 This repository ships with a fully-functional, if a touch silly
 example implementation.  To build it:
 
-    $ go build ./example/sfab
+    $ go build ./example/demo
 
 That will put a multi-call binary, named `sfab` in your current
 working directory (the root of the codebase).  The example system
@@ -264,31 +264,31 @@ to poke the agents.
 It also ships with an `envrc` that sets all the environment
 variables to make running a single hub + agent trivial:
 
-    $ source example/sfab/envrc
+    $ source example/demo/envrc
 
 To play along at home, run the following commands, in different
 terminal windows or tmux panes:
 
-    $ source example/sfab/envrc && ./sfab hub
-    $ source example/sfab/envrc && ./sfab agent test-agent
-    $ source example/sfab/envrc && watch ./sfab keys
+    $ source example/demo/envrc && ./demo hub
+    $ source example/demo/envrc && ./demo agent test-agent
+    $ source example/demo/envrc && watch ./demo keys
 
 Then, you can ping the **test-agent** agent:
 
-    $ source example/sfab/envrc
-    $ ./sfab ping test-agent
+    $ source example/demo/envrc
+    $ ./demo ping test-agent
 
 This should fail, since we haven't authorized the test-agent's
 key; we don't yet trust that agent.  To establish that trust:
 
-    $ source example/sfab/envrc  # if you hven't already...
-    $ ./sfab authz test-agent
+    $ source example/demo/envrc  # if you hven't already...
+    $ ./demo authz test-agent
 
 You'll notice that the `watch` command we ran will list the key as
 authorized now, and the agent as "known".  Test it out by pinging
 the agent again:
 
-    $ ./sfab ping test-agent
+    $ ./demo ping test-agent
 
 This time, you should see some output from the hub, detailing the
 PONG response from the agent, and you should see some chatter on
@@ -296,20 +296,20 @@ the agent pane / terminal about the receipt of a PING.
 
 You can deauthorize the test-agent by running:
 
-    $ ./sfab deauthz test-agent
+    $ ./demo deauthz test-agent
 
 You can also get a list of all the PING / PONG exchanges by
 running:
 
-    $ ./sfab responses
+    $ ./demo responses
 
 To play with it some more, refer to the built-in help:
 
-    $ ./sfab --help
+    $ ./demo --help
 To play with it some more, refer to the built-in help:
 
-    $ ./sfab --help
-    sfab - An example implementation of SSH-Fabric
+   $ ./demo --help
+    demo - An example implementation of SSH-Fabric
 
     COMMANDS
 
@@ -353,7 +353,7 @@ To play with it some more, refer to the built-in help:
         -a, --api     The full URL of the hub HTTP API. ($SFAB_HUB)
 
 Go ahead!  Try spinning up some other agents, either reusing the
-existing `example/sfab/agent_key`, or generating a new one.
+existing `example/demo/agent_key`, or generating a new one.
 
 
 Contributing

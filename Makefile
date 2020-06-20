@@ -7,6 +7,6 @@ test:
 	go test -race .
 
 examples:
-	go build -race ./example/sfab
+	go build -race ./example/demo
 
-.PHONY: default build test example
+.PHONY: default build test examples

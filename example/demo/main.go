@@ -67,7 +67,7 @@ func main() {
 	}
 
 	if command == "" || opts.Help {
-		fmt.Printf("sfab - An example implementation of SSH-Fabric\n")
+		fmt.Printf("demo - An example implementation of SSH-Fabric\n")
 		fmt.Printf("\n")
 		fmt.Printf("COMMANDS\n")
 		fmt.Printf("\n")
@@ -130,7 +130,7 @@ func main() {
 		if !ok {
 			os.Exit(1)
 		}
-		fmt.Fprintf(os.Stderr, "@M{sfab hub} starting  SSH server on @G{%s}\n", opts.Hub.Bind)
+		fmt.Fprintf(os.Stderr, "@M{demo hub} starting  SSH server on @G{%s}\n", opts.Hub.Bind)
 		fmt.Fprintf(os.Stderr, "         starting HTTP server on @G{%s}\n", opts.Hub.Listen)
 		Hub()
 
@@ -164,7 +164,7 @@ func main() {
 			PrivateKey: key,
 		}
 
-		fmt.Fprintf(os.Stderr, "@Y{sfab agent} connecting to hub at @M{%s}\n", opts.Agent.Hub)
+		fmt.Fprintf(os.Stderr, "@Y{demo agent} connecting to hub at @M{%s}\n", opts.Agent.Hub)
 		err = a.Connect("tcp4", opts.Agent.Hub, jsonnet)
 		bail(err, "unable to connect to hub at '%s'", opts.Agent.Hub)
 		os.Exit(0)

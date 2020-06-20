@@ -4,8 +4,8 @@ export SFAB_HUB_BIND=127.0.0.1:4771
 export SFAB_HUB_API=http://127.0.0.1:4772
 export SFAB_HUB_LISTEN=127.0.0.1:4772
 
-export SFAB_HUB_HOST_KEY=example/sfab/host_key
-export SFAB_AGENT_KEY=example/sfab/agent_key
+export SFAB_HUB_HOST_KEY=example/demo/host_key
+export SFAB_AGENT_KEY=example/demo/agent_key
 export SFAB_AGENT_FINGERPRINT=SHA256:+OfW6IvZ4zoFDi+FM6qTZNXLucVHdRNpaai8mOyIkeo
 
 export SFAB_LOG_LEVEL=info
