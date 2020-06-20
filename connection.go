@@ -27,6 +27,7 @@ type connection struct {
 	// failures (broken pipes, errors, protocol refusal, etc.)
 	//
 	hangup chan int
+	hungup bool
 
 	// Reapers are goroutines (represented by their messaging endpoints)
 	// that have subscribed to the keepalive goroutine, and are interested
@@ -71,10 +72,10 @@ type connection struct {
 // such call will have any effect.
 //
 func (c *connection) Hangup() {
-	if c.hangup != nil {
+	if !c.hungup {
 		c.hangup <- 0
 		close(c.hangup)
-		c.hangup = nil
+		c.hungup = false
 	}
 }
 
@@ -93,6 +94,7 @@ func (c *connection) monitor(t time.Duration) {
 		case <-tick.C:
 			_, _, err := c.ssh.SendRequest("keepalive", true, nil)
 			if err != nil {
+				tick.Stop()
 				c.Hangup()
 			}
 
@@ -104,7 +106,6 @@ func (c *connection) monitor(t time.Duration) {
 				reaper <- 1
 				close(reaper)
 			}
-
 			return
 		}
 	}
@@ -139,8 +140,6 @@ func (c *connection) Serve(chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request
 	go c.monitor(t)
 
 	for msg := range c.messages {
-		// this is where we insert a `go` to parallelize...
-
 		if err := c.run(msg); err != nil {
 			c.Hangup()
 			break
