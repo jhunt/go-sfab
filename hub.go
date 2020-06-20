@@ -369,5 +369,7 @@ func (h *Hub) register(name string, conn *ssh.ServerConn) (*connection, error) {
 func (h *Hub) Authorizations() []Authorization {
 	h.lock()
 	defer h.unlock()
+
+	h.init()
 	return h.keys.Authorizations()
 }
