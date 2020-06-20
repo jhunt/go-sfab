@@ -14,7 +14,7 @@ import (
 
 func Hub() {
 	var responses []string
-	key, err := sfab.PrivateKeyFromFile(opts.Hub.Key)
+	key, err := sfab.ParseKeyFromFile(opts.Hub.Key)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to load host private key from %s: %s\n", opts.Hub.Key, err)
 		os.Exit(1)

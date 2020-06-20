@@ -33,7 +33,7 @@ var _ = Describe("end-to-end", func() {
 		BeforeEach(func() {
 			port++
 
-			ak, err := sfab.GeneratePrivateKey(1024)
+			ak, err := sfab.GenerateKey(1024)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			agent = &sfab.Agent{
@@ -43,7 +43,7 @@ var _ = Describe("end-to-end", func() {
 			}
 			agent.AcceptAnyHostKey()
 
-			hk, err := sfab.GeneratePrivateKey(1024)
+			hk, err := sfab.GenerateKey(1024)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			hub = &sfab.Hub{
@@ -51,7 +51,7 @@ var _ = Describe("end-to-end", func() {
 				HostKey:   hk,
 				KeepAlive: 10 * time.Second,
 			}
-			hub.AuthorizeKey(agent.Identity, ak.PublicKey())
+			hub.AuthorizeKey(agent.Identity, ak)
 		})
 
 		It("should not know about an agent before connect()", func() {
@@ -73,7 +73,7 @@ var _ = Describe("end-to-end", func() {
 		})
 
 		It("should not allow unauthorized agents to connect()", func() {
-			rogueKey, err := sfab.GeneratePrivateKey(1024)
+			rogueKey, err := sfab.GenerateKey(1024)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			rogue := &sfab.Agent{
@@ -92,7 +92,7 @@ var _ = Describe("end-to-end", func() {
 		})
 
 		It("should not allow deauthorized agents to connect()", func() {
-			hub.DeauthorizeKey(agent.Identity, agent.PrivateKey.PublicKey())
+			hub.DeauthorizeKey(agent.Identity, agent.PrivateKey)
 			Ω(hub.Listen()).Should(Succeed())
 			go hub.Serve()
 			Ω(hub.KnowsAgent(agent.Identity)).Should(BeFalse())
@@ -102,10 +102,10 @@ var _ = Describe("end-to-end", func() {
 		})
 
 		It("should not allow deauthorized agents to connect()", func() {
-			rogueKey, err := sfab.GeneratePrivateKey(1024)
+			rogueKey, err := sfab.GenerateKey(1024)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			hub.DeauthorizeKey(agent.Identity, rogueKey.PublicKey())
+			hub.DeauthorizeKey(agent.Identity, rogueKey)
 			Ω(hub.Listen()).Should(Succeed())
 			go hub.Serve()
 			Ω(hub.KnowsAgent(agent.Identity)).Should(BeFalse())
@@ -170,7 +170,7 @@ var _ = Describe("end-to-end", func() {
 		BeforeEach(func() {
 			port++
 
-			ak, err := sfab.GeneratePrivateKey(1024)
+			ak, err := sfab.GenerateKey(1024)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			agent = &sfab.Agent{
@@ -180,7 +180,7 @@ var _ = Describe("end-to-end", func() {
 			}
 			agent.AcceptAnyHostKey()
 
-			hk, err := sfab.GeneratePrivateKey(1024)
+			hk, err := sfab.GenerateKey(1024)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			hub = &sfab.Hub{
@@ -188,7 +188,7 @@ var _ = Describe("end-to-end", func() {
 				HostKey:   hk,
 				KeepAlive: 10 * time.Second,
 			}
-			hub.AuthorizeKey(agent.Identity, ak.PublicKey())
+			hub.AuthorizeKey(agent.Identity, ak)
 		})
 
 		It("should allow a hub → agent dispatch", func() {
@@ -299,7 +299,7 @@ var _ = Describe("end-to-end", func() {
 		BeforeEach(func() {
 			port++
 
-			hk, err := sfab.GeneratePrivateKey(1024)
+			hk, err := sfab.GenerateKey(1024)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			hub = &sfab.Hub{
@@ -310,7 +310,7 @@ var _ = Describe("end-to-end", func() {
 
 			agents := make([]*sfab.Agent, 5)
 			for i := range agents {
-				ak, err := sfab.GeneratePrivateKey(1024)
+				ak, err := sfab.GenerateKey(1024)
 				Ω(err).ShouldNot(HaveOccurred())
 
 				agent := &sfab.Agent{
@@ -320,7 +320,7 @@ var _ = Describe("end-to-end", func() {
 				}
 				agent.AcceptAnyHostKey()
 
-				hub.AuthorizeKey(agent.Identity, ak.PublicKey())
+				hub.AuthorizeKey(agent.Identity, ak)
 				agents[i] = agent
 			}
 		})
@@ -364,6 +364,75 @@ var _ = Describe("end-to-end", func() {
 		})
 	})
 
+	Context("key handling", func() {
+		It("should generate combination public/private key objects", func() {
+			k, err := sfab.GenerateKey(2048)
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(k.IsPrivateKey()).Should(BeTrue())
+			Ω(k.IsPublicKey()).Should(BeTrue())
+		})
+
+		It("should be able to turn a combination public/private key into a private key", func() {
+			k, err := sfab.GenerateKey(2048)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			k = k.Private()
+			Ω(k.IsPrivateKey()).Should(BeTrue())
+			Ω(k.IsPublicKey()).Should(BeFalse())
+		})
+
+		It("should be able to turn a combination public/private key into a public key", func() {
+			k, err := sfab.GenerateKey(2048)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			k = k.Public()
+			Ω(k.IsPrivateKey()).Should(BeFalse())
+			Ω(k.IsPublicKey()).Should(BeTrue())
+		})
+
+		It("should encode private keys as PEM 'RSA PRIVATE KEY' blocks", func() {
+			k, err := sfab.GenerateKey(2048)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			s := k.Private().EncodeString()
+			Ω(s).Should(HavePrefix("-----BEGIN RSA PRIVATE KEY-----"))
+		})
+
+		It("should encode public keys as PEM 'RSA PUBLIC KEY' blocks", func() {
+			k, err := sfab.GenerateKey(2048)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			s := k.Public().EncodeString()
+			Ω(s).Should(HavePrefix("-----BEGIN RSA PUBLIC KEY-----"))
+		})
+
+		It("should decode private key PEM blocks into combination public/private keys", func() {
+			src, err := sfab.GenerateKey(2048)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			dst, err := sfab.ParseKey(src.Encode())
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(dst.EncodeString()).Should(Equal(src.EncodeString()))
+			Ω(dst.Private().EncodeString()).Should(Equal(src.Private().EncodeString()))
+			Ω(dst.Public().EncodeString()).Should(Equal(src.Public().EncodeString()))
+			Ω(dst.IsPrivateKey()).Should(BeTrue())
+			Ω(dst.IsPublicKey()).Should(BeTrue())
+		})
+
+		It("should decode public key PEM blocks into combination public/private keys", func() {
+			src, err := sfab.GenerateKey(2048)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			dst, err := sfab.ParseKey(src.Public().Encode())
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(dst.EncodeString()).Should(Equal(src.Public().EncodeString()))
+			Ω(dst.IsPrivateKey()).Should(BeFalse())
+			Ω(dst.IsPublicKey()).Should(BeTrue())
+		})
+	})
+
 	Context("large network of agents", func() {
 		scaleTo := func(n int) func() {
 			return func() {
@@ -390,7 +459,7 @@ var _ = Describe("end-to-end", func() {
 				// all good, carry on...
 				port++
 
-				hk, err := sfab.GeneratePrivateKey(1024)
+				hk, err := sfab.GenerateKey(1024)
 				Ω(err).ShouldNot(HaveOccurred())
 
 				hub := &sfab.Hub{
@@ -403,7 +472,7 @@ var _ = Describe("end-to-end", func() {
 
 				ch := make(chan int, n)
 				for i := 0; i < n; i++ {
-					ak, err := sfab.GeneratePrivateKey(1024)
+					ak, err := sfab.GenerateKey(1024)
 					Ω(err).ShouldNot(HaveOccurred())
 
 					agent := &sfab.Agent{
@@ -412,7 +481,7 @@ var _ = Describe("end-to-end", func() {
 						Timeout:    30 * time.Second,
 					}
 					agent.AcceptAnyHostKey()
-					hub.AuthorizeKey(agent.Identity, ak.PublicKey())
+					hub.AuthorizeKey(agent.Identity, ak)
 					go agent.Connect("tcp4", hub.Bind, func(_ []byte, _, _ io.Writer) (int, error) {
 						ch <- 1
 						return 0, nil

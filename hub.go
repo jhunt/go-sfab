@@ -36,7 +36,7 @@ type Hub struct {
 
 	// Private Key to use for the server component of this Hub.
 	//
-	HostKey *PrivateKey
+	HostKey *Key
 
 	// How frequently to send KeepAlive messages to connected
 	// agents, to keep their TCP transport channels open.
@@ -177,7 +177,7 @@ func (h *Hub) init() {
 	}
 }
 
-func (h *Hub) authorizeKey(agent string, key *PublicKey) {
+func (h *Hub) authorizeKey(agent string, key *Key) {
 	h.init()
 	h.keys.Authorize(key, agent)
 }
@@ -188,14 +188,14 @@ func (h *Hub) authorizeKey(agent string, key *PublicKey) {
 // This can be called dynamically, long after a call to Listen(),
 // or before.
 //
-func (h *Hub) AuthorizeKey(agent string, key *PublicKey) {
+func (h *Hub) AuthorizeKey(agent string, key *Key) {
 	h.lock()
 	defer h.unlock()
 
 	h.authorizeKey(agent, key)
 }
 
-func (h *Hub) deauthorizeKey(agent string, key *PublicKey) {
+func (h *Hub) deauthorizeKey(agent string, key *Key) {
 	h.init()
 	h.keys.Deauthorize(key, agent)
 }
@@ -206,41 +206,11 @@ func (h *Hub) deauthorizeKey(agent string, key *PublicKey) {
 // This can be called dynamically, long after a call to Listen(),
 // or before.
 //
-func (h *Hub) DeauthorizeKey(agent string, key *PublicKey) {
+func (h *Hub) DeauthorizeKey(agent string, key *Key) {
 	h.lock()
 	defer h.unlock()
 
 	h.deauthorizeKey(agent, key)
-}
-
-// AuthorizeKeys reads the given file, which is expected to
-// be in OpenSSH's _authorized keys format_, and trusts each
-// and every key in their, for the named agents in the associated
-// comments.
-//
-// This can be called dynamically, long after a call to Listen(),
-// or before.
-//
-func (h *Hub) AuthorizeKeys(file string) error {
-	h.lock()
-	defer h.unlock()
-
-	return withAuthKeys(file, h.authorizeKey)
-}
-
-// DeauthorizeKeys reads the given file, which is expected to
-// be in OpenSSH's _authorized keys format_, and deauthorizes each
-// and every key in their, for the named agents in the associated
-// comments.
-//
-// This can be called dynamically, long after a call to Listen(),
-// or before.
-//
-func (h *Hub) DeauthorizeKeys(file string) error {
-	h.lock()
-	defer h.unlock()
-
-	return withAuthKeys(file, h.deauthorizeKey)
 }
 
 // Send a message to an agent (by name).  Returns an error

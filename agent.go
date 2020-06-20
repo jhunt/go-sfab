@@ -39,7 +39,7 @@ type Agent struct {
 
 	// Private Key to use for connecting to upstream sFAB Hubs.
 	//
-	PrivateKey *PrivateKey
+	PrivateKey *Key
 
 	// How long to wait for an upstream Hub to connect.
 	//
@@ -64,7 +64,7 @@ func (a *Agent) AcceptAnyHostKey() {
 // Authorize a specific Hub Host Key, which will be accepted from any Hub
 // with the name or IP address given as `host`.
 //
-func (a *Agent) AuthorizeKey(host string, key *PublicKey) {
+func (a *Agent) AuthorizeKey(host string, key *Key) {
 	if a.keys == nil {
 		a.keys = &KeyMaster{}
 	}
@@ -79,11 +79,11 @@ func (a *Agent) AuthorizeKey(host string, key *PublicKey) {
 //
 func (a *Agent) Connect(proto, host string, handler Handler) error {
 	if a.Identity == "" {
-		return fmt.Errorf("missing Identity in Agent object.")
+		return fmt.Errorf("missing identity")
 	}
 
-	if a.PrivateKey == nil {
-		return fmt.Errorf("missing PrivateKey in Agent object.")
+	if a.PrivateKey == nil || !a.PrivateKey.IsPrivateKey() {
+		return fmt.Errorf("missing private key")
 	}
 
 	if a.Timeout == 0 {

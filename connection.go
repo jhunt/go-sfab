@@ -47,7 +47,7 @@ type connection struct {
 	// We keep this on-hand so that we can authorize and deauthorize via
 	// the Hub's KeyMaster as needed.
 	//
-	key *PublicKey
+	key *Key
 
 	// The identity (user@domain) that the agent used in the authentication
 	// phase of the underlying SSH protocol transport connection handshake.

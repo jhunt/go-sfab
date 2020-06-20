@@ -155,7 +155,7 @@ func main() {
 		if !ok {
 			os.Exit(1)
 		}
-		key, err := sfab.PrivateKeyFromFile(opts.Agent.Key)
+		key, err := sfab.ParseKeyFromFile(opts.Agent.Key)
 		bail(err, "unable to load agent private key from %s", opts.Agent.Key)
 
 		a := sfab.Agent{
