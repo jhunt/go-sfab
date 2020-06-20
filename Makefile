@@ -2,6 +2,7 @@ default: build test
 
 build:
 	go build .
+	go build ./cmd/sfab
 
 test:
 	go test -race .

@@ -356,6 +356,100 @@ Go ahead!  Try spinning up some other agents, either reusing the
 existing `example/demo/agent_key`, or generating a new one.
 
 
+Generating SFAB RSA Keys
+========================
+
+The state of the art in generating RSA private and public keys is
+a bit saddening, to say the least.  To make life easier for
+ourselves, and others, we wrote a small helper utility named
+`sfab`, and packaged it up in this repository.
+
+You can use it to generate a keypair like this:
+
+    $ sfab keygen
+    generating a 2048-bit rsa private key to standard output...
+    -----BEGIN RSA PRIVATE KEY-----
+    MIIEowIBAAKCAQEA2jRmGj8AdGB+QhwPcXPltij33NnP/Q5tyYaE+n7WPsrnWQzh
+    8IeCVX2Jkxnjn7uT2y4kNDEbY2P8DewWMlgTCyulIlZgAFxNGnrvRECkH6wVRlWM
+    nlx3UlQgNExIIfDg0Z8A7DOChFD1GGe/twN37bgtempHUT2TDPGjK0jpMmcGbI9q
+    rvnidoeipXifgpSROOxs8qnWA8BVgdqUqGiA5FWRV2yTXO9G07jsP4Vf1Vdu87Eb
+    XMlRxAcFQOtf+TjbPGtSkDeyJSkjsHmT/+JYvJQlKL4gg8K0+Uw2/aemLetvwsCa
+    Po9RO5XguSDGC8ecqE+758Rv6Jiz26UFcN21mwIDAQABAoIBADU1Y9Rwmn7GbONY
+    Dlf/B/vkf5SGNJajpxfmSpT+yuWi+skXQB00Hg8UvrB1NrFjv0lKNh/X/bK91d/b
+    OwppubMWoH0ADQbpew/C/IdrL9pdTw7Im7KeH6aexv+ZvlkwcNIM8N+oK+JyD2I1
+    ImXRXbRFHinksqFX33zfi4dpjxvv2eSImeNRI4mY4e9zNCYzMgH/51N9MVQNwEFu
+    E2ExJhyPnGa2Pld1FewYczvhIkPPhB6UZsw0M9FicrZfFN5GJwVr+P121S/FMDIm
+    N0j2d7utkqfh639sOM7Y4na5T8ztn/UuC0xHCnI2eDpXUhT+47oERYqQYifyz1by
+    nRzIXZkCgYEA20Bx474++BJ6jmNyLzxnxMLDaFv1oAOaN8JrVhzQ++sDQ92M+UKX
+    BL4WqCw4LYwE+UIcsRgAw/GXTuqLB7L4uAfujyx/uPR1o4v9qE9Bbx23dgKyE8fa
+    JJzAEw8AzhQ2Rxnlof28EqMySKZ5hDuG+/mF8czzV7Bg6ASpCmszpkUCgYEA/scH
+    A31UI86mpRzTpg89gNENt17mwP5isfgKXAxL1zhgdszLKSxwfSTMQzSAypieqdFq
+    zsMoULtpq+lzRoUHXIMLdD+hcLLRVBnPDWxT0WGmAYLaIN1L7RxMz+sx+hrexy/d
+    F7WdS//G8/YEwNr0IBFKC3sj7vceAEIGLweQGl8CgYANjW88x5620NWYhZciSlaT
+    uAJCKiUFrhNTTQY7fW6Bk+ZQxJoZMj+JgIKABLO4RQZtreN+IuCxO/bBXwgXAr4T
+    ChJ58SM3+Ixo/pdAVx3RU4HqnoIJbPoT90h8JRpEosU0Ieqq17dPY50RFpE+Vjui
+    yaq45pVIH1PuI5ObXEMGDQKBgH+H1r3rbUOjPI1nuZXlCQ9DFc+VJIK0k2isVVsw
+    GIJ5yOeOqZ9JjGFIGysEy/cdoEY2+nTXAYYv2bxg1gAVtNKdEg21kDUefWPQq3D3
+    qZkkfPlCq7dJrqjYwqZM/65G5v7juZMVqNATD16s5kI3F345yUun7xu9/Pl6EyhV
+    a8+XAoGBAJmeUEDVGv9uiICM8abfl7wyxekD3pdfajov5gWj5PKYW7tLBRfbbmcy
+    UdM0PnqUgKgICqhUfMcRlc1+anH8JPYQnfDgTzimKei4Y07KJgeyrZyi0nojk441
+    UGr9V8J7AypffH88uQt3msGhkP1wPA60PIhoIkzAYjPRrSda3PU7
+    -----END RSA PRIVATE KEY-----
+
+The `sfab key` command lets you validate and optionally print the
+private and public key components of a given key file:
+
+    $ sfab keygen > test.pem
+    $ sfab key -q --private --public test.pem
+    $ echo $?
+    0
+    $ sfab key --private --public test.pem
+    -----BEGIN RSA PRIVATE KEY-----
+    MIIEpAIBAAKCAQEAtgQJei7jzcr4HTNydR6GOVdFr/c2zdnhCku3BHLogliV1hNA
+    9oUqajCNUvpkDRMxSWCIdiQdhms5N/o+nBJQgEj259eiKdcsrBKGk7SjDXgdjBTD
+    yTgx550/3O2A0qACk14Xf2xIKSidOByIBFFjbh5oQq0nTZnq8Sa5lZ6lx4kzvHy3
+    Qhg+mbv5ocdrgpNf6Wi1aZTzm39bvwfh5UvZxXwgBP4s4Nf8LAbatpgy8S4jt5kg
+    PsCrD0Nw1tQTrgtgrQO3KjPwizdnUwkSS3jAX40hKW7d229IS/0hrHBn4Tc0HaWA
+    F2fncwYD8BwHFI1ZmwMMWHXzdNFvDC/CInALgQIDAQABAoIBAQCI7SSMDDZHnIdm
+    wEs8nEfxXxwHsnxCA8Rt0GPQLvmHBUlDEJzwV2F/HSNT5xXZWDTdtIc0CRtFAei7
+    mb/7/TMeLsW/x9Iwk7UBhbZD68I14cSomv5mo6W3Te67LtiYmtMVNdWLgFQQ0oLj
+    sWMJjIi2UJ2yezxz/nRmEfHPAthH8EQCoxR1BROdlaaeyfz6WVfFp27NzO3Uq9ZZ
+    8DJUPuzmHiJmQcopgtYknzBXoPC7TgKBL1ozMohbhQo7wJQTZsrxjMeBuVDSknZf
+    uXbrf1x+SfcME4fENxI6NdNQL23LFHuE9LMuapIURPFpDVDJVGs9Van2g5KiVYtt
+    tHl/doqBAoGBAMycXLDWulilAHKkDNHAarTk8cgL7F3kweyhPF2gIt2gudTKW5WL
+    iUuPdgbDDvdkcx2wbKYwpzWh0EHCGoNL770RT7gOMVf9EcjzGZPfid7tV7lTKrSF
+    rT6PNIM3AHVuOoiNe/Su/8jf/vhAx1xYzD4eAb1IprpiDNU/ww17PlipAoGBAOO6
+    6FB8CX8MP3ejzWC7mAku5tVUIGNGrWztI3c0HKGaGpLnc1OzFBmDVW5nHTodhj+D
+    VlTXxZeKunJnEtA4QyxDJuFH+dFZ7LQ+mcCMUojv0qiI/8GnGV+VV1zookslA+J2
+    BayVAEcKSyw4lc1lJdQKfD1KycPOgbEN7FSs7SsZAoGBAJc5NZSJj352rQcN0l+w
+    G+2IjF4y2cZnjSBL5qa39SziXpYz3U6Aq7+Jz0yeG9CikCYwP4zwxpRv/NCtGhVS
+    KWUOh2HcM4H5i4x+h7fv7iEyP7S8EAMODYYAJ2qXWyJvjplgIG4ubOPVEcf/cJkD
+    FCkQ2m5AZOG6GAwALTQok2LJAoGAeJZNU+kKYkMLDIApTZKoZBx40Pe2GrufM7Gy
+    ePmYO55NegKjF+wYtZXM1CQ33sEpiFI0kcKb963XIqMf3DAeqb55RQuG5mt2os8P
+    PV1QiwBrDSFWRKYGEo4S77ijz6SvFOioAoX32qZBvg3MjTGFQW238gC7LDsag7W6
+    se/LumkCgYBt0+ylBg9zh0QIKFXvBecRVtIgvjV57mWvFQkB/4/0F3P2Hz87Jja5
+    GLr9neUNVcdD7RRL10/m/V0uJXVrBO7GinhsEFfuzNdMBM+7USdnOv2r1rQwJfsO
+    OlNmor/8YUVY8/YIDU6cZ7dHfxQBWjoKj8dt8jMMJGxqsJ96HsgtFw==
+    -----END RSA PRIVATE KEY-----
+    -----BEGIN RSA PUBLIC KEY-----
+    MIIBCgKCAQEAtgQJei7jzcr4HTNydR6GOVdFr/c2zdnhCku3BHLogliV1hNA9oUq
+    ajCNUvpkDRMxSWCIdiQdhms5N/o+nBJQgEj259eiKdcsrBKGk7SjDXgdjBTDyTgx
+    550/3O2A0qACk14Xf2xIKSidOByIBFFjbh5oQq0nTZnq8Sa5lZ6lx4kzvHy3Qhg+
+    mbv5ocdrgpNf6Wi1aZTzm39bvwfh5UvZxXwgBP4s4Nf8LAbatpgy8S4jt5kgPsCr
+    D0Nw1tQTrgtgrQO3KjPwizdnUwkSS3jAX40hKW7d229IS/0hrHBn4Tc0HaWAF2fn
+    cwYD8BwHFI1ZmwMMWHXzdNFvDC/CInALgQIDAQAB
+    -----END RSA PUBLIC KEY-----
+
+With `--quiet` (`-q`) mode, you can even validate a bunch of keys
+in a directory:
+
+    $ sfab key -q ~/my/keys/*.pem
+
+... or via a find + xargs shell pipeline:
+
+    $ find / -name 'rsa*.pem' | xargs sfab key -q
+
+
 Contributing
 ============
 
