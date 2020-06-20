@@ -142,7 +142,7 @@ func (h *Hub) Serve() error {
 			continue
 		}
 
-		log.Infof("[hub] registering agent with public key: %s\n", c.Permissions.Extensions[PublicKeyExtensionName])
+		log.Infof("[hub] registering agent '%s' with public key: %s\n", c.User(), c.Permissions.Extensions[PublicKeyExtensionName])
 		connection, err := h.register(c.User(), c)
 		if err != nil {
 			log.Errorf("[hub] failed to register agent '%s': %s", c.User(), err)
@@ -352,6 +352,7 @@ func (h *Hub) register(name string, conn *ssh.ServerConn) (*connection, error) {
 		done: func() {
 			h.lock()
 			defer h.unlock()
+			log.Infof("[hub] deregistering agent '%v'...", conn.User())
 			delete(h.awaits, name)
 			delete(h.agents, name)
 		},

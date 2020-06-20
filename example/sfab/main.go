@@ -5,8 +5,10 @@ import (
 	"time"
 
 	fmt "github.com/jhunt/go-ansi"
+	"github.com/jhunt/go-log"
 	"github.com/jhunt/go-cli"
 	env "github.com/jhunt/go-envirotron"
+
 	"github.com/jhunt/go-sfab"
 )
 
@@ -53,6 +55,10 @@ func main() {
 	opts.Agent.Hub = "127.0.0.1:4771"
 
 	env.Override(&opts)
+	log.SetupLogging(log.LogConfig{
+		Type: "console",
+		Level: opts.LogLevel,
+	})
 
 	command, args, err := cli.Parse(&opts)
 	if err != nil {

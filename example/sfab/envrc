@@ -7,3 +7,5 @@ export SFAB_HUB_LISTEN=127.0.0.1:4772
 export SFAB_HUB_HOST_KEY=example/sfab/host_key
 export SFAB_AGENT_KEY=example/sfab/agent_key
 export SFAB_AGENT_FINGERPRINT=SHA256:gXIjmTxFKwvlnN0Zc795xQJav8SCMrHcVRF0kRKzkGI
+
+export SFAB_LOG_LEVEL=info

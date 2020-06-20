@@ -3,6 +3,7 @@ package sfab
 import (
 	"time"
 
+	"github.com/jhunt/go-log"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -94,6 +95,7 @@ func (c *connection) monitor(t time.Duration) {
 		case <-tick.C:
 			_, _, err := c.ssh.SendRequest("keepalive", true, nil)
 			if err != nil {
+				log.Errorf("[hub] unable to send keepalive message to '%s': %s", c.identity, err)
 				tick.Stop()
 				c.Hangup()
 			}
