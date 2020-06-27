@@ -14,9 +14,12 @@ import (
 	"github.com/jhunt/go-sfab"
 )
 
+var Version string
+
 var opts struct {
 	LogLevel string `cli:"-L, --log-level" env:"SFAB_LOG_LEVEL"`
 	Help     bool   `cli:"-h, --help"`
+	Version  bool   `cli:"-v, --version"`
 
 	Keygen struct {
 		Bits int `cli:"-b, --bits"`
@@ -43,6 +46,15 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "!!! %s\n", err)
 		os.Exit(1)
+	}
+
+	if opts.Version {
+		if Version == "" {
+			fmt.Printf("sfab (development)\n")
+		} else {
+			fmt.Printf("sfab v@W{%s}\n", Version)
+		}
+		os.Exit(0)
 	}
 
 	if opts.Help || (command == "" && len(args) == 0) {
