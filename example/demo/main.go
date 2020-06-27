@@ -5,9 +5,9 @@ import (
 	"time"
 
 	fmt "github.com/jhunt/go-ansi"
-	"github.com/jhunt/go-log"
 	"github.com/jhunt/go-cli"
 	env "github.com/jhunt/go-envirotron"
+	"github.com/jhunt/go-log"
 
 	"github.com/jhunt/go-sfab"
 )
@@ -56,7 +56,7 @@ func main() {
 
 	env.Override(&opts)
 	log.SetupLogging(log.LogConfig{
-		Type: "console",
+		Type:  "console",
 		Level: opts.LogLevel,
 	})
 

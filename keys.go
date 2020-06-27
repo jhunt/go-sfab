@@ -13,7 +13,7 @@ import (
 
 type Key struct {
 	private *rsa.PrivateKey
-	signer ssh.Signer
+	signer  ssh.Signer
 
 	public *rsa.PublicKey
 	sshpub ssh.PublicKey
@@ -27,7 +27,7 @@ type Key struct {
 func (k Key) Private() *Key {
 	return &Key{
 		private: k.private,
-		signer: k.signer,
+		signer:  k.signer,
 	}
 }
 
@@ -130,14 +130,14 @@ func (k Key) IsPublicKey() bool {
 func (k Key) Encode() []byte {
 	if k.private != nil {
 		return pem.EncodeToMemory(&pem.Block{
-			Type: "RSA PRIVATE KEY",
+			Type:  "RSA PRIVATE KEY",
 			Bytes: x509.MarshalPKCS1PrivateKey(k.private),
 		})
 	}
 
 	if k.public != nil {
 		return pem.EncodeToMemory(&pem.Block{
-			Type: "RSA PUBLIC KEY",
+			Type:  "RSA PUBLIC KEY",
 			Bytes: x509.MarshalPKCS1PublicKey(k.public),
 		})
 	}
