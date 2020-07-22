@@ -15,6 +15,8 @@ const (
 	NotAuthorized                  = 2
 
 	PublicKeyExtensionName = "sfab-pubkey"
+
+	Wildcard = "*"
 )
 
 type authorization struct {
@@ -105,6 +107,9 @@ func (m *KeyMaster) authorized(subject string, key ssh.PublicKey) bool {
 		return false
 	}
 	v, ok := m.keys[k][subject]
+	if !ok {
+		v, ok = m.keys[k][Wildcard]
+	}
 	return ok && v.disposition == Authorized
 }
 
@@ -139,7 +144,7 @@ func (m *KeyMaster) hostKeyCallback() ssh.HostKeyCallback {
 		if m.authorized(remote.String(), key) {
 			return nil
 		}
-		if m.authorized("*", key) {
+		if m.authorized(Wildcard, key) {
 			return nil
 		}
 		return fmt.Errorf("unrecognized host key")
@@ -170,6 +175,10 @@ func (m KeyMaster) Authorizations() []Authorization {
 
 	for k := range m.keys {
 		for s, authz := range m.keys[k] {
+			if s == Wildcard {
+				continue
+			}
+
 			l = append(l, Authorization{
 				PublicKey:      authz.publicKey,
 				Identity:       s,
