@@ -22,6 +22,7 @@ var opts struct {
 		Bind   string `cli:"-b, --bind"   env:"SFAB_HUB_BIND"`
 		Listen string `cli:"-l, --listen" env:"SFAB_HUB_LISTEN"`
 		Key    string `cli:"-k, --key"    env:"SFAB_HUB_HOST_KEY"`
+		Agent  string `cli:"-A, --agent"  env:"SFAB_HUB_AGENT_KEY"`
 
 		KeepAlive int `cli:"--keep-alive" env:"SFAB_HUB_KEEPALIVE"`
 	} `cli:"hub"`
@@ -55,12 +56,11 @@ func main() {
 	opts.Agent.Hub = "127.0.0.1:4771"
 
 	env.Override(&opts)
+	command, args, err := cli.Parse(&opts)
 	log.SetupLogging(log.LogConfig{
 		Type:  "console",
 		Level: opts.LogLevel,
 	})
-
-	command, args, err := cli.Parse(&opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "!!! %s\n", err)
 		os.Exit(1)
@@ -157,6 +157,7 @@ func main() {
 		}
 		key, err := sfab.ParseKeyFromFile(opts.Agent.Key)
 		bail(err, "unable to load agent private key from %s", opts.Agent.Key)
+		fmt.Fprintf(os.Stderr, "@Y{demo agent} loaded key [%s]\n", key.Fingerprint())
 
 		a := sfab.Agent{
 			Identity:   args[0],

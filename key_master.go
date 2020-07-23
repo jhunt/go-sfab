@@ -97,7 +97,7 @@ func (m *KeyMaster) Authorized(subject string, key *Key) bool {
 }
 
 func (m *KeyMaster) authorized(subject string, key ssh.PublicKey) bool {
-	k := fmt.Sprintf("%v", ssh.FingerprintSHA256(key))
+	k := fmt.Sprintf("%s", ssh.FingerprintSHA256(key))
 
 	if m.keys == nil {
 		return false
@@ -107,7 +107,7 @@ func (m *KeyMaster) authorized(subject string, key ssh.PublicKey) bool {
 		return false
 	}
 	v, ok := m.keys[k][subject]
-	if !ok {
+	if !ok || v.disposition == UnknownDisposition  {
 		v, ok = m.keys[k][Wildcard]
 	}
 	return ok && v.disposition == Authorized

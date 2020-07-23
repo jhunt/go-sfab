@@ -24,7 +24,7 @@ func Hub() {
 		HostKey:   key,
 		KeepAlive: time.Duration(opts.Hub.KeepAlive) * time.Second,
 
-		AllowUnauthorizedAgents: true,
+		AllowUnauthorizedAgents: opts.Hub.Agent == "",
 
 		OnConnect: func (name string, key sfab.Key) {
 			fmt.Fprintf(os.Stderr, "[event::connect] agent '%s' connected.\n", name)
@@ -32,6 +32,15 @@ func Hub() {
 		OnDisconnect: func (name string, key sfab.Key) {
 			fmt.Fprintf(os.Stderr, "[event::disconnect] agent '%s' disconnected.\n", name)
 		},
+	}
+
+	if opts.Hub.Agent != "" {
+		key, err := sfab.ParseKeyFromFile(opts.Hub.Agent)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to load agent public key from %s: %s\n", opts.Hub.Agent, err)
+			os.Exit(1)
+		}
+		h.AuthorizeKey(sfab.Wildcard, key)
 	}
 
 	go func() {

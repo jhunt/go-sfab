@@ -12,7 +12,7 @@ import (
 
 const DefaultKeepAlive time.Duration = 60 * time.Second
 
-type AgentCallback func (string, Key)
+type AgentCallback func(string, Key)
 
 // A Hub represents a server from whence jobs to execute are
 // dispatched.  sFAB Agents connect _to_ a Hub, and await
@@ -209,6 +209,7 @@ func (h *Hub) AuthorizeKey(agent string, key *Key) {
 	h.lock()
 	defer h.unlock()
 
+	log.Debugf("authorizing subject '%s' with key [%s]", agent, key.Fingerprint())
 	h.authorizeKey(agent, key)
 }
 
@@ -227,6 +228,7 @@ func (h *Hub) DeauthorizeKey(agent string, key *Key) {
 	h.lock()
 	defer h.unlock()
 
+	log.Debugf("deauthorizing subject '%s' with key [%s]", agent, key.Fingerprint())
 	h.deauthorizeKey(agent, key)
 }
 
