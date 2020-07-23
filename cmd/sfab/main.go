@@ -29,6 +29,7 @@ var opts struct {
 		Quiet   bool `cli:"-q, --quiet, --no-quiet" env:"SFAB_QUIET"`
 		Private bool `cli:"-k, --private, --priv, --no-private, --no-priv"`
 		Public  bool `cli:"-p, --public, --pub, --no-public, --no-pub"`
+		Fingerprint bool `cli:"-f, --fingerprint"`
 	} `cli:"key"`
 }
 
@@ -74,6 +75,9 @@ func main() {
 		fmt.Printf("                    (Prints the PEM-encoded key if ! --quiet)\n")
 		fmt.Printf("    --public        Validate that the public key is present.\n")
 		fmt.Printf("                    (Prints the public key if ! --quiet)\n")
+		fmt.Printf("    --fingerprint   Validates that the public key is present,\n")
+		fmt.Printf("                    and prints its fingerprint.\n")
+		fmt.Printf("                    Has no effect if --quiet is set.\n")
 		fmt.Printf("\n")
 		os.Exit(0)
 	}
@@ -146,17 +150,22 @@ func main() {
 				}
 			}
 
-			if opts.Key.Public {
+			if opts.Key.Public || opts.Key.Fingerprint {
 				if !k.IsPublicKey() {
 					fmt.Fprintf(os.Stderr, "%s does not contain a public key\n", path)
 					errors = true
 				}
 				if !opts.Key.Quiet {
-					fmt.Printf("%s", k.Public().EncodeString())
+					if opts.Key.Public {
+						fmt.Printf("%s", k.Public().EncodeString())
+					}
+					if opts.Key.Fingerprint {
+						fmt.Printf("%s\n", k.Fingerprint())
+					}
 				}
 			}
 
-			if !opts.Key.Private && !opts.Key.Public {
+			if !opts.Key.Private && !opts.Key.Public && !opts.Key.Fingerprint {
 				if !opts.Key.Quiet {
 					fmt.Printf("%s", k.EncodeString())
 				}
