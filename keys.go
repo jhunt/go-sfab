@@ -19,10 +19,9 @@ type Key struct {
 	sshpub ssh.PublicKey
 }
 
-// ParseKeyFrom*
-// Encode*
-// Private()
-// Public()
+func (k Key) Fingerprint() string {
+	return ssh.FingerprintSHA256(k.sshpub)
+}
 
 func (k Key) Private() *Key {
 	return &Key{

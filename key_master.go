@@ -62,7 +62,7 @@ func (m *KeyMaster) Deauthorize(key *Key, subjects ...string) {
 }
 
 func (m *KeyMaster) track(key *Key, disp disposition, subjects ...string) string {
-	k := ssh.FingerprintSHA256(key.sshpub)
+	k := key.Fingerprint()
 
 	if m.keys == nil {
 		m.keys = make(map[string]map[string]*authorization)
