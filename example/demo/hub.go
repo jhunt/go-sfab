@@ -25,6 +25,13 @@ func Hub() {
 		KeepAlive: time.Duration(opts.Hub.KeepAlive) * time.Second,
 
 		AllowUnauthorizedAgents: true,
+
+		OnConnect: func (name string, key sfab.Key) {
+			fmt.Fprintf(os.Stderr, "[event::connect] agent '%s' connected.\n", name)
+		},
+		OnDisconnect: func (name string, key sfab.Key) {
+			fmt.Fprintf(os.Stderr, "[event::disconnect] agent '%s' disconnected.\n", name)
+		},
 	}
 
 	go func() {

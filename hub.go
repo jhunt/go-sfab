@@ -12,6 +12,8 @@ import (
 
 const DefaultKeepAlive time.Duration = 60 * time.Second
 
+type AgentCallback func (string, Key)
+
 // A Hub represents a server from whence jobs to execute are
 // dispatched.  sFAB Agents connect _to_ a Hub, and await
 // instructions.
@@ -44,6 +46,17 @@ type Hub struct {
 	// By default, no KeepAlives are sent.
 	//
 	KeepAlive time.Duration
+
+	// An optional function to be called when a new agent
+	// registers with the hub (authorized or not).
+	//
+	OnConnect AgentCallback
+
+	// An optional function to be called when a registered
+	// agent (authorized or not) deregisters from the hub,
+	// or is forcibly deregistered after a missed heartbeat.
+	//
+	OnDisconnect AgentCallback
 
 	// Concurrency guard, for access to the agents map
 	// from multiple (handler) goroutines.
@@ -150,6 +163,10 @@ func (h *Hub) Serve() error {
 			continue
 		}
 		go connection.Serve(chans, reqs, h.KeepAlive)
+		if h.OnConnect != nil {
+			log.Infof("[hub] calling onconnect handler for '%s'", connection.identity)
+			h.OnConnect(connection.identity, *connection.key)
+		}
 	}
 }
 
@@ -323,6 +340,10 @@ func (h *Hub) register(name string, conn *ssh.ServerConn) (*connection, error) {
 			h.lock()
 			defer h.unlock()
 			log.Infof("[hub] deregistering agent '%v'...", conn.User())
+			if h.OnDisconnect != nil {
+				log.Infof("[hub] calling disconnect handler for '%s'", conn.User())
+				h.OnDisconnect(conn.User(), *h.keys.publicKeyUsed(conn))
+			}
 			delete(h.awaits, name)
 			delete(h.agents, name)
 		},
